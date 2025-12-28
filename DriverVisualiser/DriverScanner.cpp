@@ -3,6 +3,10 @@
 #include <setupapi.h>
 #include <devguid.h>
 
+DriverScanner::DriverScanner(){
+
+}
+
 std::wstring DriverScanner::getProperty(void* hDevInfo, void* devInfodata, unsigned long property){
     // Pointer casting
     HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
@@ -13,7 +17,7 @@ std::wstring DriverScanner::getProperty(void* hDevInfo, void* devInfodata, unsig
     DWORD requiredSize = 0;
 
     // Api call to get device property
-    if (SetupDiGetDeviceregistryPropertyW(
+    if (SetupDiGetDeviceRegistryPropertyW(
         handle,
         data,
         property,
@@ -39,13 +43,13 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
     );
 
     if (hDevInfo == INVALID_HANDLE_VALUE) {
-        return driversList; // Return empty list on failure
+        return driverList; // Return empty list on failure
     }
 
     SP_DEVINFO_DATA devInfoData;
     devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
-    // 2. Loop through every device Windows found
+    // Loop through every device Windows found
     for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
         DriverInfo info;
 
@@ -62,7 +66,7 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
         driverList.push_back(info);
     }
 
-    // 4. Clean up the handle to prevent memory leaks
+    // Clean up the handle to prevent memory leaks
     SetupDiDestroyDeviceInfoList(hDevInfo);
 
     return driverList;

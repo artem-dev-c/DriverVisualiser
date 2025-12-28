@@ -12,11 +12,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+find_library(SETUP_LIB setupapi)
+
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+        DriverScanner.cpp
+        DriverScanner.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -42,7 +46,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(DriverVisualiser PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(DriverVisualiser PRIVATE Qt${QT_VERSION_MAJOR}::Widgets setupapi)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

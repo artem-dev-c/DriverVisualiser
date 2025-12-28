@@ -19,5 +19,6 @@ public:
 
 private:
     Ui::MainWindow *ui;
+    void populateDriverTable();
 };
 #endif // MAINWINDOW_H

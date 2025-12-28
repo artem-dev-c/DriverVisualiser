@@ -23,7 +23,6 @@ class DriverScanner {
 public:
     DriverScanner();
 
-
     std::vector<DriverInfo> fetchDrivers();
 
 private:
