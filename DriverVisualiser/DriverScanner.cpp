@@ -3,7 +3,9 @@
 #include <setupapi.h>
 #include <devguid.h>
 #include <cfgmgr32.h>   // Required for the status retrieval
+// TODO: Retrieve device status via CM_Get_DevNode_Status
 
+//================== Constructor ==================
 
 
 DriverScanner::DriverScanner(){
@@ -61,14 +63,20 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
 
     // Loop through every device Windows found
     for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
-        DriverInfo info;
+        DriverInfo info{};
 
         info.name         = getProperty(hDevInfo, &devInfoData, SPDRP_DEVICEDESC);
         info.manufacturer = getProperty(hDevInfo, &devInfoData, SPDRP_MFG);
         info.provider     = getProperty(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME);
         info.deviceClass  = getProperty(hDevInfo, &devInfoData, SPDRP_CLASS);
         
-        // --- SECOND API CALL TO GET VERSION, INSTALATION DATE AND STATUS ---
+        // Default values in case second API call fails
+        info.version     = L"Unknown";
+        info.installDate = L"Unknown";
+        info.status      = L"Unknown";
+
+        
+        // Build compatible driver list to retrieve version and install date
         if (SetupDiBuildDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER)){
 
             SP_DRVINFO_DATA_W drvData;
@@ -79,7 +87,7 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
                 // Version is a 64-bit value.
                 DWORDLONG version = drvData.DriverVersion;
                 wchar_t verBuf[100];
-                swprintf(verBuf, 100, L"%u.%u.%u.%u", 
+                swprintf_s(verBuf, 100, L"%u.%u.%u.%u", 
                          (unsigned)((version >> 48) & 0xFFFF), 
                          (unsigned)((version >> 32) & 0xFFFF), 
                          (unsigned)((version >> 16) & 0xFFFF), 
@@ -87,10 +95,12 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
                 info.version = verBuf;
 
                 SYSTEMTIME st;
-                FileTimeToSystemTime(&drvData.DriverDate, &st);
-                wchar_t dateBuf[50];
-                swprintf(dateBuf, 50, L"%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
-                info.installDate = dateBuf;
+                // If Windows api returns false
+                if (FileTimeToSystemTime(&drvData.DriverDate, &st)){
+                    wchar_t dateBuf[50];
+                    swprintf_s(dateBuf, 50, L"%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
+                    info.installDate = dateBuf;
+                    };
             }
 
             // Clean up driver info list
