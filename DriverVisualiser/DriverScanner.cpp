@@ -73,7 +73,7 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
         // Default values in case second API call fails
         info.version     = L"Unknown";
         info.installDate = L"Unknown";
-        info.status      = L"Unknown";
+        info.status      = getDeviceStatus(devInfoData.DevInst);
 
         
         // Build compatible driver list to retrieve version and install date
@@ -116,3 +116,59 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
 
     return driverList;
 }
+
+//================== private getDeviceStatus() ==================
+// Retrieves the current status of the device driver
+
+std::wstring DriverScanner::getDeviceStatus(DEVINST devInst) {
+    ULONG status = 0;
+    ULONG problem = 0;
+
+    if (CM_Get_DevNode_Status(&status, &problem, devInst, 0) != CR_SUCCESS) {
+        return L"Unknown";
+    }
+
+    if (status & DN_HAS_PROBLEM) {
+        return problemCodeToString(problem);
+    }
+
+    if (status & DI_DISABLED) {
+        return L"Disabled";
+    }
+
+    if (status & DN_STARTED) {
+        return L"OK";
+    }
+
+    return L"Not started";
+}
+
+//================== private problemCodeToString() ==================
+// Converts a problem code into a human-readable string
+
+std::wstring DriverScanner::problemCodeToString(ULONG problem) {
+    switch (problem) {
+        case CM_PROB_DISABLED:
+            return L"Disabled by user";
+
+        case CM_PROB_DRIVER_FAILED_LOAD:
+            return L"Driver failed to load";
+
+        case CM_PROB_FAILED_START:
+            return L"Driver failed to start";
+
+        case CM_PROB_NOT_CONFIGURED:
+            return L"No driver installed";
+
+        case CM_PROB_DEVICE_NOT_THERE:
+            return L"Device not present";
+
+        case CM_PROB_OUT_OF_MEMORY:
+            return L"Out of memory";
+
+        default:
+            return L"Unknown problem";
+    }
+}
+
+

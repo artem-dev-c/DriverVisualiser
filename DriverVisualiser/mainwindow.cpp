@@ -30,7 +30,8 @@ void MainWindow::populateDriverTable()
         ui->tableDrivers->setItem(row, 0, new QTableWidgetItem(QString::fromStdWString(info.name)));
         ui->tableDrivers->setItem(row, 1, new QTableWidgetItem(QString::fromStdWString(info.manufacturer)));
         ui->tableDrivers->setItem(row, 2, new QTableWidgetItem(QString::fromStdWString(info.deviceClass)));
-        ui->tableDrivers->setItem(row, 3, new QTableWidgetItem(QString::fromStdWString(info.version)));
+        ui->tableDrivers->setItem(row, 3, new QTableWidgetItem(QString::fromStdWString(info.status)));
+        ui->tableDrivers->setItem(row, 4, new QTableWidgetItem(QString::fromStdWString(info.version)));
 
         ui->tableDrivers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Auto-size columns
         ui->tableDrivers->setSortingEnabled(true); // Allow user to click headers to sort
