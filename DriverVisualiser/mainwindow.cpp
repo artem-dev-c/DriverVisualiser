@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include "DriverScanner.h"
+#include "DriverGrouper.h"
+#include <QTreeWidgetItem>
+#include <QHeaderView>
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -8,7 +11,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    populateDriverTable();
+    populateDriverTree();
 }
 
 MainWindow::~MainWindow()
@@ -16,24 +19,42 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::populateDriverTable()
+void MainWindow::populateDriverTree()
 {
+    ui->treeDrivers->clear();
+
+    ui->treeDrivers->setColumnCount(4);
+    ui->treeDrivers->setHeaderLabels({
+        "Driver",
+        "Manufacturer",
+        "Status",
+        "Version"
+    });
+
     DriverScanner scanner;
-    std::vector<DriverInfo> drivers = scanner.fetchDrivers();
+    DriverGrouper grouper;
 
-    ui->tableDrivers->setRowCount(drivers.size());
+    auto groupedDrivers = grouper.groupByClass(scanner.fetchDrivers());
 
-    for (int row = 0; row < drivers.size(); row++) {
-        const auto& info = drivers[row];
+    for (const auto& [deviceClass, driverList] : groupedDrivers) {
 
-        // Device Name | Manufacturer | Device Class | Provider
-        ui->tableDrivers->setItem(row, 0, new QTableWidgetItem(QString::fromStdWString(info.name)));
-        ui->tableDrivers->setItem(row, 1, new QTableWidgetItem(QString::fromStdWString(info.manufacturer)));
-        ui->tableDrivers->setItem(row, 2, new QTableWidgetItem(QString::fromStdWString(info.deviceClass)));
-        ui->tableDrivers->setItem(row, 3, new QTableWidgetItem(QString::fromStdWString(info.status)));
-        ui->tableDrivers->setItem(row, 4, new QTableWidgetItem(QString::fromStdWString(info.version)));
+        // ---- Parent item (Driver Class) ----
+        QTreeWidgetItem* classItem = new QTreeWidgetItem(ui->treeDrivers);
+        classItem->setText(0, QString::fromStdWString(deviceClass));
+        classItem->setFirstColumnSpanned(true);
+        classItem->setExpanded(false); // collapsed by default
 
-        ui->tableDrivers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Auto-size columns
-        ui->tableDrivers->setSortingEnabled(true); // Allow user to click headers to sort
+        // ---- Child items (Drivers) ----
+        for (const auto& driver : driverList) {
+            QTreeWidgetItem* driverItem = new QTreeWidgetItem(classItem);
+
+            driverItem->setText(0, QString::fromStdWString(driver.name));
+            driverItem->setText(1, QString::fromStdWString(driver.manufacturer));
+            driverItem->setText(2, QString::fromStdWString(driver.status));
+            driverItem->setText(3, QString::fromStdWString(driver.version));
+        }
     }
+
+    ui->treeDrivers->expandAll(); // optional
 }
+

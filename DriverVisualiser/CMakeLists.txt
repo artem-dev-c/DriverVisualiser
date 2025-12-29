@@ -21,6 +21,8 @@ set(PROJECT_SOURCES
         mainwindow.ui
         DriverScanner.cpp
         DriverScanner.h
+        DriverGrouper.h
+        DriverGrouper.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

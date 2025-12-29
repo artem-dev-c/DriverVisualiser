@@ -14,13 +14,13 @@
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QTableWidget" name="tableDrivers">
+   <widget class="QTreeWidget" name="treeDrivers">
     <property name="geometry">
      <rect>
-      <x>70</x>
-      <y>-20</y>
-      <width>1061</width>
-      <height>741</height>
+      <x>10</x>
+      <y>0</y>
+      <width>1021</width>
+      <height>461</height>
      </rect>
     </property>
     <column>
@@ -35,17 +35,17 @@
     </column>
     <column>
      <property name="text">
-      <string>Class</string>
-     </property>
-    </column>
-    <column>
-     <property name="text">
       <string>Status</string>
      </property>
     </column>
     <column>
      <property name="text">
       <string>Version</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string/>
      </property>
     </column>
    </widget>
