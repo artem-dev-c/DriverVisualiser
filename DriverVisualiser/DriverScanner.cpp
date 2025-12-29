@@ -132,10 +132,6 @@ std::wstring DriverScanner::getDeviceStatus(DEVINST devInst) {
         return problemCodeToString(problem);
     }
 
-    if (status & DI_DISABLED) {
-        return L"Disabled";
-    }
-
     if (status & DN_STARTED) {
         return L"OK";
     }
