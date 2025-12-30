@@ -1,10 +1,9 @@
-#ifndef DRIVERINFO_H
-#define DRIVERINFO_H
+#pragma once
 
 #include <string>
-#include <optional>
 #include <chrono>
-#include <windows.h>
+#include <optional>
+#include <guiddef.h>
 
 enum class DriverImportance {
     Critical,
@@ -22,10 +21,11 @@ enum class DriverStatus {
 };
 
 struct DriverVersion {
-    uint16_t major{};
-    uint16_t minor{};
-    uint16_t build{};
-    uint16_t revision{};
+    uint16_t major = 0;
+    uint16_t minor = 0;
+    uint16_t build = 0;
+    uint16_t revision = 0;
+    bool hasVersion = false;       ///< Flag indicating if version information is available
 };
 
 
@@ -36,11 +36,10 @@ struct DriverInfo {
     std::wstring instanceId;       ///< Unique instance ID of the driver
 
     std::wstring deviceClassName;  ///< Name of the device class
-    GUID deviceClassGuid{};        ///< GUID of the device class
+    GUID deviceClassGuid;          ///< GUID of the device class
 
-    DriverVersion version{};       ///< Version of the driver
-    bool hasVersion = false;       ///< Flag indicating if version information is available
-
+    DriverVersion version;         ///< Version of the driver
+   
     std::optional<std::chrono::sys_days> installDate;             ///< Installation date of the driver    
 
     DriverStatus status = DriverStatus::Unknown;                  ///< Current status of the driver
@@ -48,5 +47,3 @@ struct DriverInfo {
     DriverImportance importanceLevel = DriverImportance::Unknown; ///< Importance level of the driver (e.g., Critical, Optional)
     
 };
-
-#endif // DRIVERINFO_H

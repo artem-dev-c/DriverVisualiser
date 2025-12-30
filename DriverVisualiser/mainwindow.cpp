@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "DriverGrouper.h"
+#include "DriverStatusFormatter.h"
+#include "DriverVersionFormatter.h"
+#include "DriverInstallDateFormatter.h"
 #include <QTreeWidgetItem>
 #include <QHeaderView>
 
@@ -23,13 +26,15 @@ void MainWindow::populateDriverTree()
 {
     ui->treeDrivers->clear();
 
-    ui->treeDrivers->setColumnCount(4);
+    ui->treeDrivers->setColumnCount(5);
     ui->treeDrivers->setHeaderLabels({
         "Driver",
         "Manufacturer",
         "Status",
-        "Version"
+        "Version",
+        "Install date"
     });
+
 
     DriverScanner scanner;
     DriverGrouper grouper;
@@ -38,23 +43,22 @@ void MainWindow::populateDriverTree()
 
     for (const auto& [deviceClass, driverList] : groupedDrivers) {
 
-        // ---- Parent item (Driver Class) ----
         QTreeWidgetItem* classItem = new QTreeWidgetItem(ui->treeDrivers);
         classItem->setText(0, QString::fromStdWString(deviceClass));
         classItem->setFirstColumnSpanned(true);
-        classItem->setExpanded(false); // collapsed by default
+        classItem->setExpanded(false);
 
-        // ---- Child items (Drivers) ----
         for (const auto& driver : driverList) {
             QTreeWidgetItem* driverItem = new QTreeWidgetItem(classItem);
 
             driverItem->setText(0, QString::fromStdWString(driver.name));
             driverItem->setText(1, QString::fromStdWString(driver.manufacturer));
-            driverItem->setText(2, QString::fromStdWString(driver.status));
-            driverItem->setText(3, QString::fromStdWString(driver.version));
+            driverItem->setText(2, DriverStatusFormatter::statusToString(driver.status));
+            driverItem->setText(3, DriverVersionFormatter::versionToString(driver.version));
+            driverItem->setText(4, DriverInstallDateFormatter::dateToString(driver.installDate));
         }
     }
 
-    ui->treeDrivers->expandAll(); // optional
+    ui->treeDrivers->expandAll();
 }
 

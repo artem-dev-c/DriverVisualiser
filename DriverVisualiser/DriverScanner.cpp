@@ -1,4 +1,5 @@
 #include "DriverScanner.h"
+#include "DriverInfo.h"
 #include <windows.h>
 #include <setupapi.h>
 #include <devguid.h>
@@ -6,7 +7,6 @@
 // TODO: Retrieve device status via CM_Get_DevNode_Status
 
 //================== Constructor ==================
-
 
 DriverScanner::DriverScanner(){
 
@@ -64,12 +64,13 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
         info.name         = getProperty(hDevInfo, &devInfoData, SPDRP_DEVICEDESC);
         info.manufacturer = getProperty(hDevInfo, &devInfoData, SPDRP_MFG);
         info.provider     = getProperty(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME);
-        info.deviceClass  = getProperty(hDevInfo, &devInfoData, SPDRP_CLASS);
         
+        info.deviceClassName = getProperty(hDevInfo, &devInfoData, SPDRP_CLASS);
+        info.deviceClassGuid = devInfoData.ClassGuid;
+
         // Default values in case second API call fails
         info.instanceId  = L"Unknown";
-        info.version     = L"Unknown";
-        info.installDate = L"Unknown";
+
         info.status      = getDeviceStatus(devInfoData.DevInst);
 
         wchar_t instanceId[MAX_DEVICE_ID_LEN];
@@ -84,25 +85,25 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
             SP_DRVINFO_DATA_W drvData;
             drvData.cbSize = sizeof(SP_DRVINFO_DATA_W);
 
-            if (SetupDiEnumDriverInfoW(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER, 0, &drvData)){
-                
-                // Version is a 64-bit value.
+            if (SetupDiEnumDriverInfoW(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER, 0, &drvData)) {
+
+                // Extract 64-bit version
                 DWORDLONG version = drvData.DriverVersion;
-                wchar_t verBuf[100];
-                swprintf_s(verBuf, 100, L"%u.%u.%u.%u", 
-                         (unsigned)((version >> 48) & 0xFFFF), 
-                         (unsigned)((version >> 32) & 0xFFFF), 
-                         (unsigned)((version >> 16) & 0xFFFF), 
-                         (unsigned)(version & 0xFFFF));
-                info.version = verBuf;
+
+                info.version.major    = static_cast<uint16_t>((version >> 48) & 0xFFFF);
+                info.version.minor    = static_cast<uint16_t>((version >> 32) & 0xFFFF);
+                info.version.build    = static_cast<uint16_t>((version >> 16) & 0xFFFF);
+                info.version.revision = static_cast<uint16_t>(version & 0xFFFF);
+                info.version.hasVersion = true;
 
                 SYSTEMTIME st;
-                // If Windows api returns false
-                if (FileTimeToSystemTime(&drvData.DriverDate, &st)){
-                    wchar_t dateBuf[50];
-                    swprintf_s(dateBuf, 50, L"%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
-                    info.installDate = dateBuf;
+                if (FileTimeToSystemTime(&drvData.DriverDate, &st)) {
+                    info.installDate = std::chrono::sys_days{
+                        std::chrono::year{st.wYear} /
+                        std::chrono::month{st.wMonth} /
+                        std::chrono::day{st.wDay}
                     };
+                }
             }
 
             // Clean up driver info list
@@ -122,28 +123,33 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
 //================== private getDeviceStatus() ==================
 // Retrieves the current status of the device driver
 
-std::wstring DriverScanner::getDeviceStatus(DEVINST devInst) {
+DriverStatus DriverScanner::getDeviceStatus(DEVINST devInst) {
     ULONG status = 0;
     ULONG problem = 0;
 
     if (CM_Get_DevNode_Status(&status, &problem, devInst, 0) != CR_SUCCESS) {
-        return L"Unknown";
+        return DriverStatus::Unknown;
     }
 
+    // EARLY VERSION: Simplified status evaluation
     if (status & DN_HAS_PROBLEM) {
-        return problemCodeToString(problem);
+        return DriverStatus::Error;
     }
+       
 
     if (status & DN_STARTED) {
-        return L"OK";
+        return DriverStatus::Ok;
     }
 
-    return L"Not started";
+    return DriverStatus::NotStarted;
 }
 
 //================== private problemCodeToString() ==================
 // Converts a problem code into a human-readable string
 
+// ==================================================================
+//                           NOT USED YET
+// ==================================================================
 std::wstring DriverScanner::problemCodeToString(ULONG problem) {
     switch (problem) {
         case CM_PROB_DISABLED:

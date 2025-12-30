@@ -41,7 +41,7 @@ private:
     * @note Uses Configuration Manager (CfgMgr32) to evaluate live device node 
     * status bits and problem codes.
     */
-    std::wstring getDeviceStatus(DEVINST devInst);
+    DriverStatus getDeviceStatus(DEVINST devInst);
 
     /**
      * @brief Converts a problem code into a human-readable string.
@@ -52,6 +52,3 @@ private:
 };
 
 #endif // DRIVER_SCANNER_H
-
-
-

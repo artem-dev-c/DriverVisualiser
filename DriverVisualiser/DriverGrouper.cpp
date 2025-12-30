@@ -8,9 +8,9 @@ DriverGrouper::groupByClass(const std::vector<DriverInfo>& drivers)
     DriverGroupMap grouped;
 
     for (const auto& driver : drivers) {
-        std::wstring key = driver.deviceClass.empty()
+        std::wstring key = driver.deviceClassName.empty()
             ? L"Unknown"
-            : driver.deviceClass;
+            : driver.deviceClassName;
 
         grouped[key].push_back(driver);
     }
