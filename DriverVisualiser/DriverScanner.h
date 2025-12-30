@@ -14,11 +14,9 @@ struct DriverInfo {
     std::wstring status;           ///< Current status of the driver e.g "Active", "Disabled"
     std::wstring deviceClass;      ///< Class of the device the driver is associated with
     std::wstring installDate;      ///< Installation date of the driver
+    std::wstring instanceId;       ///< Unique instance ID of the driver
 
-    // TODO: Add deviceInstanceId (DEVINST) for more detailed identification
-    // TODO: Add driverCategory (e.g., System, Network, Display)
     // TODO: Add Importance level (e.g., Critical, Optional)
-
 };
 
 /**
@@ -35,18 +33,32 @@ class DriverScanner {
 public:
     DriverScanner();
 
-    // Fetches a list of installed drivers with their information
+    /**
+     * @brief Enumerates all present devices and collects basic driver information.
+     * @return A vector of DriverInfo structures containing information about each driver.
+     */
     std::vector<DriverInfo> fetchDrivers();
 
 private:
 
-    // Helper to get a specific property of a device
+    /**
+     * @brief Helper to get the device properties
+     * @return The property value as a wide string.
+     */
     std::wstring getProperty(void* hDevInfo, void* devInfoData, unsigned long property);
 
-    // Retrieves the current status of the device driver
+    /**
+    * @brief Retrieves the current status.
+    * @note Uses Configuration Manager (CfgMgr32) to evaluate live device node 
+    * status bits and problem codes.
+    */
     std::wstring getDeviceStatus(DEVINST devInst);
 
-    // Converts a problem code into a human-readable string
+    /**
+     * @brief Converts a problem code into a human-readable string.
+     * @param problem The problem code to convert.
+     * @return A human-readable string representation of the problem.   
+     */
     std::wstring problemCodeToString(ULONG problem);
 };
 

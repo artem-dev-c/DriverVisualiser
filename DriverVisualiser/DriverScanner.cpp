@@ -21,23 +21,19 @@ std::wstring DriverScanner::getProperty(void* hDevInfo, void* devInfodata, unsig
     HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
     PSP_DEVINFO_DATA data = static_cast<PSP_DEVINFO_DATA>(devInfodata);
 
-    // Buffer to hold property value
-    wchar_t buffer[1024];
     DWORD requiredSize = 0;
 
-    // Api call to get device property
-    if (SetupDiGetDeviceRegistryPropertyW(
-        handle,
-        data,
-        property,
-        nullptr,
-        reinterpret_cast<PBYTE>(buffer),
-        sizeof(buffer),
-        &requiredSize
-    )){
-        return std::wstring(buffer);
-    }
+    // Call 1: Get the required size
+    SetupDiGetDeviceRegistryPropertyW(handle, data, property, nullptr, nullptr, 0, &requiredSize);
 
+    if (requiredSize > 0) {
+        std::vector<wchar_t> buffer(requiredSize / sizeof(wchar_t) + 1);
+        // Call 2: Fill the dynamic buffer
+        if (SetupDiGetDeviceRegistryPropertyW(handle, data, property, nullptr, 
+            reinterpret_cast<PBYTE>(buffer.data()), requiredSize, nullptr)) {
+            return std::wstring(buffer.data());
+        }
+    }
     return L"Unknown";
 }
 
@@ -71,10 +67,16 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
         info.deviceClass  = getProperty(hDevInfo, &devInfoData, SPDRP_CLASS);
         
         // Default values in case second API call fails
+        info.instanceId  = L"Unknown";
         info.version     = L"Unknown";
         info.installDate = L"Unknown";
         info.status      = getDeviceStatus(devInfoData.DevInst);
 
+        wchar_t instanceId[MAX_DEVICE_ID_LEN];
+        if (SetupDiGetDeviceInstanceIdW(hDevInfo, &devInfoData, instanceId, MAX_DEVICE_ID_LEN, nullptr)) {
+        // This is the unique 'Primary Key' for the hardware
+        info.instanceId = instanceId; 
+        } 
         
         // Build compatible driver list to retrieve version and install date
         if (SetupDiBuildDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER)){
