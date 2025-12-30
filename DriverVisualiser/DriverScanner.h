@@ -5,19 +5,8 @@
 #include <string>
 #include <windows.h>   // for ULONG
 #include <cfgmgr32.h>  // for DEVINST
+#include "DriverInfo.h"
 
-struct DriverInfo {
-    std::wstring name;             ///< Human-readable name of the driver
-    std::wstring manufacturer;     ///< Manufacturer of the driver
-    std::wstring version;          ///< Version of the driver
-    std::wstring provider;         ///< Provider of the driver    
-    std::wstring status;           ///< Current status of the driver e.g "Active", "Disabled"
-    std::wstring deviceClass;      ///< Class of the device the driver is associated with
-    std::wstring installDate;      ///< Installation date of the driver
-    std::wstring instanceId;       ///< Unique instance ID of the driver
-
-    // TODO: Add Importance level (e.g., Critical, Optional)
-};
 
 /**
  * @class DriverScanner
