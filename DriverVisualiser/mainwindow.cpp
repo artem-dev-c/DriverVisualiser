@@ -4,6 +4,7 @@
 #include "DriverStatusFormatter.h"
 #include "DriverVersionFormatter.h"
 #include "DriverInstallDateFormatter.h"
+#include "DriverImportanceEvaluator.h"
 #include <QTreeWidgetItem>
 #include <QHeaderView>
 
@@ -26,13 +27,15 @@ void MainWindow::populateDriverTree()
 {
     ui->treeDrivers->clear();
 
-    ui->treeDrivers->setColumnCount(5);
+    ui->treeDrivers->setColumnCount(7);
     ui->treeDrivers->setHeaderLabels({
         "Driver",
         "Manufacturer",
         "Status",
         "Version",
-        "Install date"
+        "Install date",
+        "Importance",
+        "Instance ID"
     });
 
 
@@ -51,12 +54,17 @@ void MainWindow::populateDriverTree()
         for (const auto& driver : driverList) {
             QTreeWidgetItem* driverItem = new QTreeWidgetItem(classItem);
 
+            DriverImportance level = DriverImportanceEvaluator::evaluate(driver);
+
             driverItem->setText(0, QString::fromStdWString(driver.name));
             driverItem->setText(1, QString::fromStdWString(driver.manufacturer));
             driverItem->setText(2, DriverStatusFormatter::statusToString(driver.status));
             driverItem->setText(3, DriverVersionFormatter::versionToString(driver.version));
             driverItem->setText(4, DriverInstallDateFormatter::dateToString(driver.installDate));
+            driverItem->setText(5, DriverImportanceEvaluator::importanceToString(level));
+            driverItem->setText(6, QString::fromStdWString(driver.instanceId));
         }
+
     }
 
     ui->treeDrivers->expandAll();

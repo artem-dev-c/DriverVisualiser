@@ -21,3 +21,12 @@ DriverImportance DriverImportanceEvaluator::evaluate(const DriverInfo& d)
     
     return DriverImportance::Optional;
 }
+
+QString DriverImportanceEvaluator::importanceToString(DriverImportance level) {
+    switch(level) {
+        case DriverImportance::Critical:  return "Critical";
+        case DriverImportance::Important: return "Important";
+        case DriverImportance::Optional:  return "Optional";
+        default:                          return "Unknown";
+    }
+}

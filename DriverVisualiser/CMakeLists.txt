@@ -30,7 +30,7 @@ set(PROJECT_SOURCES
         DriverStatusFormatter.h
         DriverVersionFormatter.cpp
         DriverVersionFormatter.h
-        DriverImportanceevaluator.cpp
+        DriverImportanceEvaluator.cpp
         DriverImportanceEvaluator.h
 )
 
