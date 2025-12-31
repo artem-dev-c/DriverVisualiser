@@ -1,5 +1,4 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QMainWindow>
 
@@ -21,4 +20,4 @@ private:
     Ui::MainWindow *ui;
     void populateDriverTree();
 };
-#endif // MAINWINDOW_H
+

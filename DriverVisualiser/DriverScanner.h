@@ -1,5 +1,4 @@
-#ifndef DRIVER_SCANNER_H
-#define DRIVER_SCANNER_H
+#pragma once
 
 #include <vector>
 #include <string>
@@ -50,5 +49,3 @@ private:
      */
     std::wstring problemCodeToString(ULONG problem);
 };
-
-#endif // DRIVER_SCANNER_H

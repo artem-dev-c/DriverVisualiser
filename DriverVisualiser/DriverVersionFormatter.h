@@ -1,5 +1,4 @@
-#ifndef DRIVER_VERSION_FORMATTER_H
-#define DRIVER_VERSION_FORMATTER_H
+#pragma once
 
 #include <QString>
 #include "DriverInfo.h"
@@ -13,4 +12,4 @@ public:
     static QString versionToString(const DriverVersion& version);
 };
 
-#endif // DRIVER_VERSION_FORMATTER_H
+

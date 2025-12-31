@@ -1,5 +1,4 @@
-#ifndef DRIVER_INSTALL_DATE_FORMATTER_H
-#define DRIVER_INSTALL_DATE_FORMATTER_H
+#pragma once
 
 #include <QString>
 #include <optional>
@@ -13,5 +12,3 @@ public:
      */
     static QString dateToString(const std::optional<std::chrono::sys_days>& date);
 };
-
-#endif // DRIVER_INSTALL_DATE_FORMATTER_H

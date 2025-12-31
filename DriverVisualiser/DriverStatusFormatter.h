@@ -1,5 +1,5 @@
-#ifndef DRIVER_STATUS_FORMATTER_H
-#define DRIVER_STATUS_FORMATTER_H
+#pragma once
+
 #include <QString>
 #include "DriverInfo.h"
 
@@ -13,4 +13,3 @@ public:
     static QString statusToString(DriverStatus status);
 };
 
-#endif // DRIVER_STATUS_FORMATTER_H

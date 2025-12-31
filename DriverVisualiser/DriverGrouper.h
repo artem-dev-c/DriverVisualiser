@@ -1,5 +1,4 @@
-#ifndef DRIVER_GROUPER_H
-#define DRIVER_GROUPER_H
+#pragma once
 
 #include <map>
 #include <vector>
@@ -20,4 +19,3 @@ public:
     static DriverGroupMap groupByClass(const std::vector<DriverInfo>& drivers);
 };
 
-#endif
