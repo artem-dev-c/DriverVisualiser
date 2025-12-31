@@ -34,6 +34,9 @@ set(PROJECT_SOURCES
         DriverImportanceEvaluator.h
         DriverImportanceFormatter.cpp
         DriverImportanceFormatter.h
+        DeviceInfo.h
+        DeviceGrouper.cpp
+        DeviceGrouper.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
