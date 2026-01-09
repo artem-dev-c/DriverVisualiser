@@ -7,6 +7,7 @@
 #include "DriverImportanceEvaluator.h"
 #include "DeviceGrouper.h"
 #include "DeviceInfo.h"
+#include "DriverScanner.h"
 #include <QTreeWidgetItem>
 #include <QHeaderView>
 
