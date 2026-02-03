@@ -1,8 +1,11 @@
 #include "DriverScanner.h"
-#include "DriverInfo.h"
+
+#define INITGUID
+
 #include <windows.h>
 #include <setupapi.h>
 #include <devguid.h>
+#include <devpkey.h>
 #include <cfgmgr32.h>   // Required for the status retrieval
 // TODO: Retrieve device status via CM_Get_DevNode_Status
 
@@ -40,7 +43,8 @@ std::wstring DriverScanner::getProperty(void* hDevInfo, void* devInfodata, unsig
 //================== public fetchDrivers() ==================
 // Enumerates all present devices and collects basic driver information
 
-std::vector<DriverInfo> DriverScanner::fetchDrivers(){
+std::vector<DriverInfo> DriverScanner::fetchDrivers()
+{
     std::vector<DriverInfo> driverList;
 
     HDEVINFO hDevInfo = SetupDiGetClassDevsW(
@@ -51,45 +55,69 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
     );
 
     if (hDevInfo == INVALID_HANDLE_VALUE) {
-        return driverList; // Return empty list on failure
+        return driverList;
     }
 
     SP_DEVINFO_DATA devInfoData;
     devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
-    // Loop through every device Windows found
     for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
         DriverInfo info{};
 
+        // Basic information
         info.name         = getProperty(hDevInfo, &devInfoData, SPDRP_DEVICEDESC);
         info.manufacturer = getProperty(hDevInfo, &devInfoData, SPDRP_MFG);
         info.provider     = getProperty(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME);
-        
         info.deviceClassName = getProperty(hDevInfo, &devInfoData, SPDRP_CLASS);
         info.deviceClassGuid = devInfoData.ClassGuid;
 
-        // Default values in case second API call fails
-        info.instanceId  = L"Unknown";
-
-        info.status      = getDeviceStatus(devInfoData.DevInst);
-
+        // Instance ID
         wchar_t instanceId[MAX_DEVICE_ID_LEN];
         if (SetupDiGetDeviceInstanceIdW(hDevInfo, &devInfoData, instanceId, MAX_DEVICE_ID_LEN, nullptr)) {
-        // This is the unique 'Primary Key' for the hardware
-        info.instanceId = instanceId; 
-        } 
-        
-        // Build compatible driver list to retrieve version and install date
-        if (SetupDiBuildDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER)){
+            info.instanceId = instanceId;
+        } else {
+            info.instanceId = L"Unknown";
+        }
 
+        // Container ID (critical for grouping)
+        info.containerId = getDevicePropertyGuid(hDevInfo, &devInfoData, &DEVPKEY_Device_ContainerId);
+
+        // Parent device
+        DEVINST parentDevInst;
+        if (CM_Get_Parent(&parentDevInst, devInfoData.DevInst, 0) == CR_SUCCESS) {
+            wchar_t parentId[MAX_DEVICE_ID_LEN];
+            if (CM_Get_Device_IDW(parentDevInst, parentId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
+                info.parentInstanceId = parentId;
+            }
+        }
+
+        // Hardware IDs
+        auto hardwareIds = getDevicePropertyMultiString(hDevInfo, &devInfoData, &DEVPKEY_Device_HardwareIds);
+        if (!hardwareIds.empty()) {
+            info.hardwareId = hardwareIds[0];
+            info.compatibleIds = hardwareIds;
+        }
+
+        // Location information
+        info.locationPath = getDeviceProperty(hDevInfo, &devInfoData, &DEVPKEY_Device_LocationInfo);
+
+        // Status and problem code
+        ULONG status = 0;
+        ULONG problemCode = 0;
+        if (CM_Get_DevNode_Status(&status, &problemCode, devInfoData.DevInst, 0) == CR_SUCCESS) {
+            info.problemCode = problemCode;
+            info.status = getDeviceStatus(devInfoData.DevInst);
+        } else {
+            info.status = DriverStatus::Unknown;
+        }
+
+        // Driver version and date
+        if (SetupDiBuildDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER)) {
             SP_DRVINFO_DATA_W drvData;
             drvData.cbSize = sizeof(SP_DRVINFO_DATA_W);
 
             if (SetupDiEnumDriverInfoW(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER, 0, &drvData)) {
-
-                // Extract 64-bit version
                 DWORDLONG version = drvData.DriverVersion;
-
                 info.version.major    = static_cast<uint16_t>((version >> 48) & 0xFFFF);
                 info.version.minor    = static_cast<uint16_t>((version >> 32) & 0xFFFF);
                 info.version.build    = static_cast<uint16_t>((version >> 16) & 0xFFFF);
@@ -104,19 +132,25 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers(){
                         std::chrono::day{st.wDay}
                     };
                 }
+
+                // Driver INF path
+                SP_DRVINFO_DETAIL_DATA_W detailData;
+                detailData.cbSize = sizeof(SP_DRVINFO_DETAIL_DATA_W);
+                if (SetupDiGetDriverInfoDetailW(hDevInfo, &devInfoData, &drvData, &detailData, sizeof(detailData), nullptr) ||
+                    GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+                    info.driverInfPath = detailData.InfFileName;
+                }
             }
 
-            // Clean up driver info list
             SetupDiDestroyDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER);
-            
         }
+
+        info.isSigned = true;
 
         driverList.push_back(info);
     }
 
-    // Clean up the handle to prevent memory leaks
     SetupDiDestroyDeviceInfoList(hDevInfo);
-
     return driverList;
 }
 
@@ -142,6 +176,94 @@ DriverStatus DriverScanner::getDeviceStatus(DEVINST devInst) {
     }
 
     return DriverStatus::NotStarted;
+}
+
+//================== Modern Device Property API Methods ==================
+
+
+//================== private getDeviceProperty() ==================
+// Reads a device property using the modern SetupDiGetDeviceProperty API
+
+std::wstring DriverScanner::getDeviceProperty(void* hDevInfo, void* devInfoData, const void* propertyKey)
+{
+    HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
+    PSP_DEVINFO_DATA data = static_cast<PSP_DEVINFO_DATA>(devInfoData);
+    const DEVPROPKEY* key = static_cast<const DEVPROPKEY*>(propertyKey);
+
+    DEVPROPTYPE propertyType;
+    DWORD requiredSize = 0;
+
+    SetupDiGetDevicePropertyW(handle, data, key, &propertyType, nullptr, 0, &requiredSize, 0);
+
+    if (requiredSize > 0) {
+        std::vector<BYTE> buffer(requiredSize);
+        if (SetupDiGetDevicePropertyW(handle, data, key, &propertyType,
+            buffer.data(), requiredSize, nullptr, 0)) {
+            
+            if (propertyType == DEVPROP_TYPE_STRING) {
+                return std::wstring(reinterpret_cast<wchar_t*>(buffer.data()));
+            }
+        }
+    }
+
+    return L"";
+}
+
+//================== private getDevicePropertyGuid() ==================
+// Reads a GUID device property using the modern SetupDiGetDeviceProperty API
+
+GUID DriverScanner::getDevicePropertyGuid(void* hDevInfo, void* devInfoData, const void* propertyKey)
+{
+    HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
+    PSP_DEVINFO_DATA data = static_cast<PSP_DEVINFO_DATA>(devInfoData);
+    const DEVPROPKEY* key = static_cast<const DEVPROPKEY*>(propertyKey);
+
+    DEVPROPTYPE propertyType;
+    GUID guid = {0};
+    DWORD requiredSize = sizeof(GUID);
+
+    if (SetupDiGetDevicePropertyW(handle, data, key, &propertyType,
+        reinterpret_cast<PBYTE>(&guid), requiredSize, nullptr, 0)) {
+        
+        if (propertyType == DEVPROP_TYPE_GUID) {
+            return guid;
+        }
+    }
+
+    return {0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0}};
+}
+
+//================== private getDevicePropertyMultiString() ==================
+// Reads a multi-string device property using the modern SetupDiGetDeviceProperty API
+
+std::vector<std::wstring> DriverScanner::getDevicePropertyMultiString(void* hDevInfo, void* devInfoData, const void* propertyKey)
+{
+    HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
+    PSP_DEVINFO_DATA data = static_cast<PSP_DEVINFO_DATA>(devInfoData);
+    const DEVPROPKEY* key = static_cast<const DEVPROPKEY*>(propertyKey);
+
+    std::vector<std::wstring> result;
+    DEVPROPTYPE propertyType;
+    DWORD requiredSize = 0;
+
+    SetupDiGetDevicePropertyW(handle, data, key, &propertyType, nullptr, 0, &requiredSize, 0);
+
+    if (requiredSize > 0) {
+        std::vector<BYTE> buffer(requiredSize);
+        if (SetupDiGetDevicePropertyW(handle, data, key, &propertyType,
+            buffer.data(), requiredSize, nullptr, 0)) {
+            
+            if (propertyType == DEVPROP_TYPE_STRING_LIST) {
+                const wchar_t* ptr = reinterpret_cast<const wchar_t*>(buffer.data());
+                while (*ptr != L'\0') {
+                    result.push_back(ptr);
+                    ptr += wcslen(ptr) + 1;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 //================== private problemCodeToString() ==================
