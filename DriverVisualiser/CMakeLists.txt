@@ -15,28 +15,23 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_library(SETUP_LIB setupapi)
 
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
-        DriverScanner.cpp
-        DriverScanner.h
-        DriverGrouper.h
-        DriverGrouper.cpp
-        DriverInfo.h
-        DriverInstallDateFormater.cpp
-        DriverInstallDateFormatter.h
-        DriverStatusFormatter.cpp
-        DriverStatusFormatter.h
-        DriverVersionFormatter.cpp
-        DriverVersionFormatter.h
-        DriverImportanceEvaluator.cpp
-        DriverImportanceEvaluator.h
-        DriverImportanceFormatter.cpp
-        DriverImportanceFormatter.h
-        DeviceInfo.h
-        DeviceGrouper.cpp
-        DeviceGrouper.h
+    src/main.cpp
+    src/ui/mainwindow.cpp
+    src/ui/mainwindow.h
+    src/ui/mainwindow.ui
+    src/scanner/DriverScanner.cpp
+    src/scanner/DriverScanner.h
+    src/models/DriverInfo.h
+    src/formatter/DriverInstallDateFormater.cpp
+    src/formatter/DriverInstallDateFormatter.h
+    src/formatter/DriverStatusFormatter.cpp
+    src/formatter/DriverStatusFormatter.h
+    src/formatter/DriverVersionFormatter.cpp
+    src/formatter/DriverVersionFormatter.h
+    src/formatter/DriverImportanceFormatter.cpp
+    src/formatter/DriverImportanceFormatter.h
+    src/scoring/DriverImportanceEvaluator.cpp
+    src/scoring/DriverImportanceEvaluator.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -44,21 +39,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET DriverVisualiser APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(DriverVisualiser SHARED
-            ${PROJECT_SOURCES}
-        )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+        add_library(DriverVisualiser SHARED ${PROJECT_SOURCES})
     else()
-        add_executable(DriverVisualiser
-            ${PROJECT_SOURCES}
-        )
+        add_executable(DriverVisualiser ${PROJECT_SOURCES})
     endif()
 endif()
 
