@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include "PhysicalDeviceGrouper.h"
+#include "CategoryGrouper.h"              // Changed
 #include "DriverScanner.h"
 #include "DriverStatusFormatter.h"
 #include "DriverVersionFormatter.h"
@@ -41,41 +41,46 @@ void MainWindow::populateDriverTree()
     DriverScanner scanner;
     auto drivers = scanner.fetchDrivers();
 
-    auto physicalDevices = PhysicalDeviceGrouper::groupByContainerId(drivers);
+    // Group by category (Device Manager style)
+    auto categories = CategoryGrouper::groupByCategory(drivers);
 
-    for (const auto& [containerId, device] : physicalDevices) {
-        QTreeWidgetItem* deviceItem = new QTreeWidgetItem(ui->treeDrivers);
-
-        QString deviceName = QString::fromStdWString(device.displayName);
-        deviceName += QString(" (%1 driver%2)")
-                          .arg(device.drivers.size())
-                          .arg(device.drivers.size() == 1 ? "" : "s");
-
-        deviceItem->setText(0, deviceName);
-        deviceItem->setText(1, QString::fromStdWString(device.manufacturer));
-        deviceItem->setText(2, DriverStatusFormatter::statusToString(device.worstStatus));
-
-        QFont font = deviceItem->font(0);
+    for (const auto& [className, category] : categories) {
+        // Category header (bold)
+        QTreeWidgetItem* categoryItem = new QTreeWidgetItem(ui->treeDrivers);
+        
+        QString categoryName = QString::fromStdWString(category.displayName);
+        categoryName += QString(" (%1)").arg(category.drivers.size());
+        
+        categoryItem->setText(0, categoryName);
+        
+        QFont font = categoryItem->font(0);
         font.setBold(true);
-        deviceItem->setFont(0, font);
+        categoryItem->setFont(0, font);
+        
+        categoryItem->setExpanded(false);
 
-        deviceItem->setExpanded(true);
+        // Individual drivers under category
+        for (const auto& driver : category.drivers) {
+            QTreeWidgetItem* driverItem = new QTreeWidgetItem(categoryItem);
 
-        for (const auto& driver : device.drivers) {
-            QTreeWidgetItem* driverItem = new QTreeWidgetItem(deviceItem);
-
-            QString driverName = QString::fromStdWString(driver.name);
-            if (!driver.deviceClassName.empty()) {
-                driverName += QString(" [%1]").arg(QString::fromStdWString(driver.deviceClassName));
+            // Smart name selection based on device type
+            QString deviceName;
+            
+            if (!driver.provider.empty() && driver.provider != L"Unknown") {
+                // Provider has useful info (disks, some devices)
+                deviceName = QString::fromStdWString(driver.provider);
+            } else {
+                // Fall back to name (GPUs, most devices)
+                deviceName = QString::fromStdWString(driver.name);
             }
-
-            driverItem->setText(0, driverName);
+            
+            driverItem->setText(0, deviceName);
             driverItem->setText(1, QString::fromStdWString(driver.manufacturer));
             driverItem->setText(2, DriverStatusFormatter::statusToString(driver.status));
             driverItem->setText(3, DriverVersionFormatter::versionToString(driver.version));
             driverItem->setText(4, DriverInstallDateFormatter::dateToString(driver.installDate));
             driverItem->setText(5, DriverImportanceFormatter::importanceToString(
-                                       DriverImportanceEvaluator::evaluate(driver)));
+                                    DriverImportanceEvaluator::evaluate(driver)));
             driverItem->setText(6, QString::fromStdWString(driver.instanceId));
         }
     }

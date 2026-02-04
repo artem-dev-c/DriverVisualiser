@@ -33,8 +33,9 @@ set(PROJECT_SOURCES
     src/formatter/DriverImportanceFormatter.h
     src/scoring/DriverImportanceEvaluator.cpp
     src/scoring/DriverImportanceEvaluator.h
-    src/grouper/PhysicalDeviceGrouper.cpp
-    src/grouper/PhysicalDeviceGrouper.h
+    src/grouper/CategoryGrouper.cpp
+    src/grouper/CategoryGrouper.h
+    src/models/DeviceCategory.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
