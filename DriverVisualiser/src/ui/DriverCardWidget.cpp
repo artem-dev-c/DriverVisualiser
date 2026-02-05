@@ -93,12 +93,12 @@ QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(4);
 
-    // Determine how many squares to fill (1-3)
     int filledCount = 0;
     switch (importance) {
         case DriverImportance::Critical:  filledCount = 3; break;
         case DriverImportance::Important: filledCount = 2; break;
         case DriverImportance::Optional:  filledCount = 1; break;
+        case DriverImportance::Virtual:   filledCount = 0; break;  // NEW
         default:                          filledCount = 0; break;
     }
 
@@ -109,15 +109,14 @@ QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance
         square->setFixedSize(16, 16);
         
         if (i < filledCount) {
-            // Filled square
             square->setStyleSheet(QString(
                 "background-color: %1;"
                 "border-radius: 3px;"
             ).arg(activeColor));
         } else {
-            // Empty square
+            // Gray square for empty/virtual
             square->setStyleSheet(
-                "background-color: #ddd;"
+                "background-color: #ccc;"  // Light gray
                 "border-radius: 3px;"
             );
         }
@@ -133,7 +132,8 @@ QString DriverCardWidget::getImportanceColor(DriverImportance importance)
     switch (importance) {
         case DriverImportance::Critical:  return "#e74c3c"; // Red
         case DriverImportance::Important: return "#f39c12"; // Orange
-        case DriverImportance::Optional:  return "#54e536"; // Blue
+        case DriverImportance::Optional:  return "#54e536"; // Green
+        case DriverImportance::Virtual:   return "#95a5a6"; // Gray - NEW
         default:                          return "#95a5a6"; // Gray
     }
 }

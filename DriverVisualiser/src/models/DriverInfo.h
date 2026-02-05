@@ -10,6 +10,7 @@ enum class DriverImportance {
     Critical,
     Important,
     Optional,
+    Virtual,
     Unknown
 };
 
