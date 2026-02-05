@@ -1,21 +1,16 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include "CategoryGrouper.h"              // Changed
+#include "CategoryGrouper.h"
 #include "DriverScanner.h"
-#include "DriverStatusFormatter.h"
-#include "DriverVersionFormatter.h"
-#include "DriverInstallDateFormatter.h"
-#include "DriverImportanceEvaluator.h"
-#include "DriverImportanceFormatter.h"
-#include <QTreeWidgetItem>
-#include <QHeaderView>
+#include "CategorySectionWidget.h"
+#include "DriverCardWidget.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    populateDriverTree();
+    populateDriverList();
 }
 
 MainWindow::~MainWindow()
@@ -23,69 +18,59 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::populateDriverTree()
+void MainWindow::clearDriverList()
 {
-    ui->treeDrivers->clear();
+    // Clear all widgets from the layout
+    QLayout* layout = ui->scrollAreaContents->layout();
+    if (!layout) return;
 
-    ui->treeDrivers->setColumnCount(7);
-    ui->treeDrivers->setHeaderLabels({
-        "Name",
-        "Manufacturer",
-        "Status",
-        "Version",
-        "Install date",
-        "Importance",
-        "Instance ID"
-    });
+    QLayoutItem* item;
+    while ((item = layout->takeAt(0)) != nullptr) {
+        if (item->widget()) {
+            delete item->widget();
+        }
+        delete item;
+    }
+}
 
+void MainWindow::populateDriverList()
+{
+    clearDriverList();
+
+    // Get the layout from the scroll area contents
+    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(ui->scrollAreaContents->layout());
+    if (!layout) {
+        layout = new QVBoxLayout(ui->scrollAreaContents);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+    }
+
+    // Scan for drivers
     DriverScanner scanner;
     auto drivers = scanner.fetchDrivers();
 
-    // Group by category (Device Manager style)
+    // Group by category
     auto categories = CategoryGrouper::groupByCategory(drivers);
 
+    // Create sections for each category
     for (const auto& [className, category] : categories) {
-        // Category header (bold)
-        QTreeWidgetItem* categoryItem = new QTreeWidgetItem(ui->treeDrivers);
-        
         QString categoryName = QString::fromStdWString(category.displayName);
-        categoryName += QString(" (%1)").arg(category.drivers.size());
         
-        categoryItem->setText(0, categoryName);
-        
-        QFont font = categoryItem->font(0);
-        font.setBold(true);
-        categoryItem->setFont(0, font);
-        
-        categoryItem->setExpanded(false);
+        // Create collapsible section
+        CategorySectionWidget* section = new CategorySectionWidget(
+            categoryName, 
+            static_cast<int>(category.drivers.size())
+        );
 
-        // Individual drivers under category
+        // Add driver cards to the section
         for (const auto& driver : category.drivers) {
-            QTreeWidgetItem* driverItem = new QTreeWidgetItem(categoryItem);
-
-            // Smart name selection based on device type
-            QString deviceName;
-            
-            if (!driver.provider.empty() && driver.provider != L"Unknown") {
-                // Provider has useful info (disks, some devices)
-                deviceName = QString::fromStdWString(driver.provider);
-            } else {
-                // Fall back to name (GPUs, most devices)
-                deviceName = QString::fromStdWString(driver.name);
-            }
-            
-            driverItem->setText(0, deviceName);
-            driverItem->setText(1, QString::fromStdWString(driver.manufacturer));
-            driverItem->setText(2, DriverStatusFormatter::statusToString(driver.status));
-            driverItem->setText(3, DriverVersionFormatter::versionToString(driver.version));
-            driverItem->setText(4, DriverInstallDateFormatter::dateToString(driver.installDate));
-            driverItem->setText(5, DriverImportanceFormatter::importanceToString(
-                                    DriverImportanceEvaluator::evaluate(driver)));
-            driverItem->setText(6, QString::fromStdWString(driver.instanceId));
+            DriverCardWidget* card = new DriverCardWidget(driver);
+            section->addDriverCard(card);
         }
+
+        layout->addWidget(section);
     }
 
-    for (int i = 0; i < ui->treeDrivers->columnCount(); ++i) {
-        ui->treeDrivers->resizeColumnToContents(i);
-    }
+    // Add stretch at the end to push everything to the top
+    layout->addStretch();
 }

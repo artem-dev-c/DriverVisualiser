@@ -19,10 +19,14 @@ set(PROJECT_SOURCES
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.ui
+    src/ui/DriverCardWidget.h
+    src/ui/DriverCardWidget.cpp
+    src/ui/CategorySectionWidget.h
+    src/ui/CategorySectionWidget.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/models/DriverInfo.h
-    src/models/PhysicalDevice.h
+    src/models/DeviceCategory.h
     src/formatter/DriverInstallDateFormater.cpp
     src/formatter/DriverInstallDateFormatter.h
     src/formatter/DriverStatusFormatter.cpp
@@ -35,7 +39,6 @@ set(PROJECT_SOURCES
     src/scoring/DriverImportanceEvaluator.h
     src/grouper/CategoryGrouper.cpp
     src/grouper/CategoryGrouper.h
-    src/models/DeviceCategory.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

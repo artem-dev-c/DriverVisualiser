@@ -1,12 +1,15 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QVBoxLayout>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
 }
 QT_END_NAMESPACE
+
+class CategorySectionWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -18,6 +21,8 @@ public:
 
 private:
     Ui::MainWindow *ui;
-    void populateDriverTree();
+    
+    void populateDriverList();
+    void clearDriverList();
 };
 
