@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QLabel>
+#include <QProgressBar>
 #include "DriverInfo.h"
 
 class DriverCardWidget : public QFrame
@@ -17,8 +18,14 @@ private:
     // Creates the importance indicator (3 squares)
     QWidget* createImportanceIndicator(DriverImportance importance);
     
+    // Creates the health bar (0-100)
+    QWidget* createHealthBar(int healthScore);
+    
     // Returns color based on importance level
     QString getImportanceColor(DriverImportance importance);
+    
+    // Returns color based on health score
+    QString getHealthColor(int healthScore);
     
     // Returns color based on driver status
     QString getStatusColor(DriverStatus status);
@@ -27,5 +34,5 @@ private:
     QLabel* m_versionLabel;
     QLabel* m_manufacturerLabel;
     QLabel* m_statusLabel;
-    QLabel* m_faultScoreLabel;
+    QProgressBar* m_healthBar;
 };

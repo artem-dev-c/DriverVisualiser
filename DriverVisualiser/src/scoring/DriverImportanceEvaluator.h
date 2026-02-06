@@ -1,7 +1,6 @@
 #pragma once
 
 #include "DriverInfo.h"
-#include <QString>
 
 class DriverImportanceEvaluator {
 public:

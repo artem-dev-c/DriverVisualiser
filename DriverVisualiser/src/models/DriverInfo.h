@@ -61,5 +61,5 @@ struct DriverInfo {
     uint32_t problemCode = 0;                   ///< Problem code indicating driver issues (0 if no issues)
     bool isPresent = true;                      ///< Indicates if the driver is currently present in the system
     bool isSigned = true;                       ///< Indicates if the driver is digitally signed
-    int faultScore = 0;                         ///< Calculated fault/risk score
+    int healthScore = 100;                      ///< Calculated health score (0-100, 100 = healthy)
 };

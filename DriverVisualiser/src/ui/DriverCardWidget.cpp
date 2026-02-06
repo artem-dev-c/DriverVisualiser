@@ -5,9 +5,9 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
 #include <QApplication>
 #include <QPalette>
+#include <QProgressBar>
 
 DriverCardWidget::DriverCardWidget(const DriverInfo& driver, QWidget* parent)
     : QFrame(parent)
@@ -52,13 +52,10 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
 
     mainLayout->addLayout(headerLayout);
 
-    // === Details row: Version, Manufacturer, Status, Fault Score ===
+    // === Details row: Version, Manufacturer, Status ===
     QHBoxLayout* detailsLayout = new QHBoxLayout();
     detailsLayout->setSpacing(20);
 
-    // Use system palette for secondary text color
-    QPalette pal = QApplication::palette();
-    
     // Version
     QString versionText = "Version: " + DriverVersionFormatter::versionToString(driver.version);
     m_versionLabel = new QLabel(versionText);
@@ -76,14 +73,44 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(statusColor));
     detailsLayout->addWidget(m_statusLabel);
 
-    // Fault Score
-    QString faultText = QString("Fault Score: %1").arg(driver.faultScore);
-    m_faultScoreLabel = new QLabel(faultText);
-    detailsLayout->addWidget(m_faultScoreLabel);
+    // Health bar (compact, inline)
+    int healthScore = driver.healthScore;
+    
+    QLabel* healthLabel = new QLabel("Health:");
+    detailsLayout->addWidget(healthLabel);
+    
+    QWidget* healthBar = createHealthBar(healthScore);
+    detailsLayout->addWidget(healthBar);
 
-    detailsLayout->addStretch(); // Push everything to the left
+    detailsLayout->addStretch();
 
     mainLayout->addLayout(detailsLayout);
+}
+
+QWidget* DriverCardWidget::createHealthBar(int healthScore)
+{
+    m_healthBar = new QProgressBar();
+    m_healthBar->setRange(0, 100);
+    m_healthBar->setValue(healthScore);
+    m_healthBar->setTextVisible(false);
+    m_healthBar->setFixedHeight(10);
+    m_healthBar->setFixedWidth(100);
+    
+    QString color = getHealthColor(healthScore);
+    
+    m_healthBar->setStyleSheet(QString(
+        "QProgressBar {"
+        "   border: 1px solid #ccc;"
+        "   border-radius: 3px;"
+        "   background-color: #e0e0e0;"
+        "}"
+        "QProgressBar::chunk {"
+        "   background-color: %1;"
+        "   border-radius: 2px;"
+        "}"
+    ).arg(color));
+
+    return m_healthBar;
 }
 
 QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance)
@@ -98,7 +125,6 @@ QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance
         case DriverImportance::Critical:  filledCount = 3; break;
         case DriverImportance::Important: filledCount = 2; break;
         case DriverImportance::Optional:  filledCount = 1; break;
-        case DriverImportance::Virtual:   filledCount = 0; break;  // NEW
         default:                          filledCount = 0; break;
     }
 
@@ -114,9 +140,8 @@ QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance
                 "border-radius: 3px;"
             ).arg(activeColor));
         } else {
-            // Gray square for empty/virtual
             square->setStyleSheet(
-                "background-color: #ccc;"  // Light gray
+                "background-color: #ddd;"
                 "border-radius: 3px;"
             );
         }
@@ -132,19 +157,29 @@ QString DriverCardWidget::getImportanceColor(DriverImportance importance)
     switch (importance) {
         case DriverImportance::Critical:  return "#e74c3c"; // Red
         case DriverImportance::Important: return "#f39c12"; // Orange
-        case DriverImportance::Optional:  return "#54e536"; // Green
-        case DriverImportance::Virtual:   return "#95a5a6"; // Gray - NEW
+        case DriverImportance::Optional:  return "#52e335"; // Blue
         default:                          return "#95a5a6"; // Gray
+    }
+}
+
+QString DriverCardWidget::getHealthColor(int healthScore)
+{
+    if (healthScore >= 80) {
+        return "#27ae60"; // Green
+    } else if (healthScore >= 50) {
+        return "#f39c12"; // Orange
+    } else {
+        return "#e74c3c"; // Red
     }
 }
 
 QString DriverCardWidget::getStatusColor(DriverStatus status)
 {
     switch (status) {
-        case DriverStatus::Ok:         return "#27ae60"; // Green
-        case DriverStatus::Error:      return "#e74c3c"; // Red
-        case DriverStatus::NotStarted: return "#f39c12"; // Orange
-        case DriverStatus::Disabled:   return "#95a5a6"; // Gray
-        default:                       return "#666666"; // Dark gray
+        case DriverStatus::Ok:         return "#27ae60";
+        case DriverStatus::Error:      return "#e74c3c";
+        case DriverStatus::NotStarted: return "#f39c12";
+        case DriverStatus::Disabled:   return "#95a5a6";
+        default:                       return "#666666";
     }
 }
