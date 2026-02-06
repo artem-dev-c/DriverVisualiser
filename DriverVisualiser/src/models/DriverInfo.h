@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 #include <guiddef.h>
+#include "HealthFlag.h"
 
 enum class DriverImportance {
     Critical,
@@ -60,7 +61,9 @@ struct DriverInfo {
     std::wstring driverInfPath;                 ///< Path to the .inf file for this driver
     std::vector<std::wstring> driverFiles;      ///< List of driver files installed by this driver package
     uint32_t problemCode = 0;                   ///< Problem code indicating driver issues (0 if no issues)
+    uint32_t rawStatus = 0;                     ///< Raw status bits from CM_Get_DevNode_Status (DN_* flags)
     bool isPresent = true;                      ///< Indicates if the driver is currently present in the system
     bool isSigned = true;                       ///< Indicates if the driver is digitally signed
     int healthScore = 100;                      ///< Calculated health score (0-100, 100 = healthy)
+    std::vector<HealthFlag> healthFlags;        ///< Detected health issues/info flags
 };

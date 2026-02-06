@@ -39,6 +39,11 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
         deviceName = QString::fromStdWString(driver.name);
     }
 
+    // DEBUG: Append problem code to name if present
+    if (driver.problemCode != 0) {
+        deviceName += QString(" [PC:%1]").arg(driver.problemCode);
+    }
+
     m_nameLabel = new QLabel(deviceName);
     QFont nameFont = m_nameLabel->font();
     nameFont.setPointSize(10);

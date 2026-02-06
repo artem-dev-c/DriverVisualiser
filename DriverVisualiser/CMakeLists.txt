@@ -27,6 +27,7 @@ set(PROJECT_SOURCES
     src/scanner/DriverScanner.h
     src/models/DriverInfo.h
     src/models/DeviceCategory.h
+    src/models/HealthFlag.h
     src/formatter/DriverDateFormatter.cpp
     src/formatter/DriverDateFormatter.h
     src/formatter/DriverStatusFormatter.cpp
@@ -37,6 +38,8 @@ set(PROJECT_SOURCES
     src/formatter/DriverImportanceFormatter.h
     src/scoring/DriverImportanceEvaluator.cpp
     src/scoring/DriverImportanceEvaluator.h
+    src/scoring/HealthScoreEvaluator.cpp
+    src/scoring/HealthScoreEvaluator.h
     src/grouper/CategoryGrouper.cpp
     src/grouper/CategoryGrouper.h
 )

@@ -1,4 +1,5 @@
 #include "DriverScanner.h"
+#include "HealthScoreEvaluator.h"
 
 #define INITGUID
 
@@ -106,6 +107,7 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers()
         ULONG problemCode = 0;
         if (CM_Get_DevNode_Status(&status, &problemCode, devInfoData.DevInst, 0) == CR_SUCCESS) {
             info.problemCode = problemCode;
+            info.rawStatus = status;
             info.status = getDeviceStatus(devInfoData.DevInst);
         } else {
             info.status = DriverStatus::Unknown;
@@ -138,6 +140,11 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers()
         info.driverInfPath = getDeviceProperty(hDevInfo, &devInfoData, &DEVPKEY_Device_DriverInfPath);
 
         info.isSigned = true;
+
+        // Evaluate health score and flags
+        HealthResult healthResult = HealthScoreEvaluator::evaluate(info);
+        info.healthScore = healthResult.score;
+        info.healthFlags = healthResult.flags;
 
         driverList.push_back(info);
     }
