@@ -34,5 +34,7 @@ private:
     QLabel* m_versionLabel;
     QLabel* m_manufacturerLabel;
     QLabel* m_statusLabel;
+    QLabel* m_driverDateLabel;
+    QLabel* m_installDateLabel;
     QProgressBar* m_healthBar;
 };

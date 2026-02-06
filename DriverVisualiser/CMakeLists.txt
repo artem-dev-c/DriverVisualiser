@@ -27,8 +27,8 @@ set(PROJECT_SOURCES
     src/scanner/DriverScanner.h
     src/models/DriverInfo.h
     src/models/DeviceCategory.h
-    src/formatter/DriverInstallDateFormater.cpp
-    src/formatter/DriverInstallDateFormatter.h
+    src/formatter/DriverDateFormatter.cpp
+    src/formatter/DriverDateFormatter.h
     src/formatter/DriverStatusFormatter.cpp
     src/formatter/DriverStatusFormatter.h
     src/formatter/DriverVersionFormatter.cpp

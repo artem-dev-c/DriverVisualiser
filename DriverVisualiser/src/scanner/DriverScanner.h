@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <string>
+#include <optional>
+#include <chrono>
 #include <windows.h>   // for ULONG
 #include <cfgmgr32.h>  // for DEVINST
 #include "DriverInfo.h"
@@ -25,6 +27,9 @@ private:
     GUID getDevicePropertyGuid(void* hDevInfo, void* devInfoData, const void* propertyKey);
 
     std::vector<std::wstring> getDevicePropertyMultiString(void* hDevInfo, void* devInfoData, const void* propertyKey);
+    
+    /// Reads a FILETIME property and converts to sys_days
+    std::optional<std::chrono::sys_days> getDevicePropertyFileTime(void* hDevInfo, void* devInfoData, const void* propertyKey);
     
     DriverStatus getDeviceStatus(DEVINST devInst);
 

@@ -43,7 +43,8 @@ struct DriverInfo {
 
     DriverVersion version;         ///< Version of the driver
    
-    std::optional<std::chrono::sys_days> installDate;             ///< Installation date of the driver    
+    std::optional<std::chrono::sys_days> driverDate;              ///< Driver release/compile date (from INF - may be unreliable)
+    std::optional<std::chrono::sys_days> installDate;             ///< Actual installation date on this system (reliable)
 
     DriverStatus status = DriverStatus::Unknown;                  ///< Current status of the driver
 

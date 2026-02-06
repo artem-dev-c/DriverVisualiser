@@ -2,6 +2,7 @@
 #include "DriverVersionFormatter.h"
 #include "DriverStatusFormatter.h"
 #include "DriverImportanceEvaluator.h"
+#include "DriverDateFormatter.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -73,6 +74,18 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(statusColor));
     detailsLayout->addWidget(m_statusLabel);
 
+    // Driver date (from INF - when driver was built/released)
+    QString driverDateText = DriverDateFormatter::isDriverDateValid(driver.driverDate) 
+        ? DriverDateFormatter::dateToString(driver.driverDate) 
+        : "Unknown";
+    m_driverDateLabel = new QLabel("Driver Date: " + driverDateText);
+    detailsLayout->addWidget(m_driverDateLabel);
+
+    // Install date (when installed on this system)
+    QString installDateText = DriverDateFormatter::dateToString(driver.installDate);
+    m_installDateLabel = new QLabel("Installed: " + installDateText);
+    detailsLayout->addWidget(m_installDateLabel);
+
     // Health bar (compact, inline)
     int healthScore = driver.healthScore;
     
@@ -93,8 +106,8 @@ QWidget* DriverCardWidget::createHealthBar(int healthScore)
     m_healthBar->setRange(0, 100);
     m_healthBar->setValue(healthScore);
     m_healthBar->setTextVisible(false);
-    m_healthBar->setFixedHeight(10);
-    m_healthBar->setFixedWidth(100);
+    m_healthBar->setFixedHeight(6);
+    m_healthBar->setFixedWidth(60);
     
     QString color = getHealthColor(healthScore);
     
@@ -157,7 +170,7 @@ QString DriverCardWidget::getImportanceColor(DriverImportance importance)
     switch (importance) {
         case DriverImportance::Critical:  return "#e74c3c"; // Red
         case DriverImportance::Important: return "#f39c12"; // Orange
-        case DriverImportance::Optional:  return "#52e335"; // Blue
+        case DriverImportance::Optional:  return "#5af14a"; // Green
         default:                          return "#95a5a6"; // Gray
     }
 }

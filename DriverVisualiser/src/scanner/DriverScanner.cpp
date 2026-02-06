@@ -111,39 +111,31 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers()
             info.status = DriverStatus::Unknown;
         }
 
-        // Driver version and date
-        if (SetupDiBuildDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER)) {
-            SP_DRVINFO_DATA_W drvData;
-            drvData.cbSize = sizeof(SP_DRVINFO_DATA_W);
-
-            if (SetupDiEnumDriverInfoW(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER, 0, &drvData)) {
-                DWORDLONG version = drvData.DriverVersion;
-                info.version.major    = static_cast<uint16_t>((version >> 48) & 0xFFFF);
-                info.version.minor    = static_cast<uint16_t>((version >> 32) & 0xFFFF);
-                info.version.build    = static_cast<uint16_t>((version >> 16) & 0xFFFF);
-                info.version.revision = static_cast<uint16_t>(version & 0xFFFF);
+        // Driver version and date - use DEVPKEY for currently installed driver
+        // (SetupDiBuildDriverInfoList with SPDIT_COMPATDRIVER returns available drivers, not installed)
+        
+        // Get installed driver version from device property
+        std::wstring versionStr = getDeviceProperty(hDevInfo, &devInfoData, &DEVPKEY_Device_DriverVersion);
+        if (!versionStr.empty()) {
+            // Parse version string like "32.0.15.9174"
+            unsigned int major = 0, minor = 0, build = 0, revision = 0;
+            if (swscanf_s(versionStr.c_str(), L"%u.%u.%u.%u", &major, &minor, &build, &revision) >= 1) {
+                info.version.major = static_cast<uint16_t>(major);
+                info.version.minor = static_cast<uint16_t>(minor);
+                info.version.build = static_cast<uint16_t>(build);
+                info.version.revision = static_cast<uint16_t>(revision);
                 info.version.hasVersion = true;
-
-                SYSTEMTIME st;
-                if (FileTimeToSystemTime(&drvData.DriverDate, &st)) {
-                    info.installDate = std::chrono::sys_days{
-                        std::chrono::year{st.wYear} /
-                        std::chrono::month{st.wMonth} /
-                        std::chrono::day{st.wDay}
-                    };
-                }
-
-                // Driver INF path
-                SP_DRVINFO_DETAIL_DATA_W detailData;
-                detailData.cbSize = sizeof(SP_DRVINFO_DETAIL_DATA_W);
-                if (SetupDiGetDriverInfoDetailW(hDevInfo, &devInfoData, &drvData, &detailData, sizeof(detailData), nullptr) ||
-                    GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-                    info.driverInfPath = detailData.InfFileName;
-                }
             }
-
-            SetupDiDestroyDriverInfoList(hDevInfo, &devInfoData, SPDIT_COMPATDRIVER);
         }
+
+        // Get installed driver date from device property
+        info.driverDate = getDevicePropertyFileTime(hDevInfo, &devInfoData, &DEVPKEY_Device_DriverDate);
+
+        // Get actual install date (when driver was installed on THIS system)
+        info.installDate = getDevicePropertyFileTime(hDevInfo, &devInfoData, &DEVPKEY_Device_InstallDate);
+
+        // Get driver INF path from device property
+        info.driverInfPath = getDeviceProperty(hDevInfo, &devInfoData, &DEVPKEY_Device_DriverInfPath);
 
         info.isSigned = true;
 
@@ -266,6 +258,37 @@ std::vector<std::wstring> DriverScanner::getDevicePropertyMultiString(void* hDev
     return result;
 }
 
+//================== private getDevicePropertyFileTime() ==================
+// Reads a FILETIME device property and converts to sys_days
+
+std::optional<std::chrono::sys_days> DriverScanner::getDevicePropertyFileTime(void* hDevInfo, void* devInfoData, const void* propertyKey)
+{
+    HDEVINFO handle = static_cast<HDEVINFO>(hDevInfo);
+    PSP_DEVINFO_DATA data = static_cast<PSP_DEVINFO_DATA>(devInfoData);
+    const DEVPROPKEY* key = static_cast<const DEVPROPKEY*>(propertyKey);
+
+    DEVPROPTYPE propertyType;
+    FILETIME ft = {0};
+    DWORD requiredSize = sizeof(FILETIME);
+
+    if (SetupDiGetDevicePropertyW(handle, data, key, &propertyType,
+        reinterpret_cast<PBYTE>(&ft), requiredSize, nullptr, 0)) {
+        
+        if (propertyType == DEVPROP_TYPE_FILETIME) {
+            SYSTEMTIME st;
+            if (FileTimeToSystemTime(&ft, &st)) {
+                return std::chrono::sys_days{
+                    std::chrono::year{st.wYear} /
+                    std::chrono::month{st.wMonth} /
+                    std::chrono::day{st.wDay}
+                };
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
 //================== private problemCodeToString() ==================
 // Converts a problem code into a human-readable string
 
@@ -296,5 +319,3 @@ std::wstring DriverScanner::problemCodeToString(ULONG problem) {
             return L"Unknown problem";
     }
 }
-
-
