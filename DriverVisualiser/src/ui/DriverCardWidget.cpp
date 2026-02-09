@@ -4,6 +4,7 @@
 #include "DriverImportanceEvaluator.h"
 #include "DriverDateFormatter.h"
 #include "FlagIndicatorWidget.h"
+#include "DriverInfoPopup.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -14,6 +15,8 @@
 
 DriverCardWidget::DriverCardWidget(const DriverInfo& driver, QWidget* parent)
     : QFrame(parent)
+    , m_infoPopup(nullptr)
+    , m_driver(driver)
 {
     setupUi(driver);
 }
@@ -29,7 +32,7 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     mainLayout->setContentsMargins(12, 8, 12, 8);
     mainLayout->setSpacing(6);
 
-    // === Top row: Name + Importance Indicator ===
+    // === Top row: Name + Importance Indicator + Info Button ===
     QHBoxLayout* headerLayout = new QHBoxLayout();
     headerLayout->setSpacing(12);
 
@@ -52,6 +55,46 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     DriverImportance importance = DriverImportanceEvaluator::evaluate(driver);
     QWidget* importanceWidget = createImportanceIndicator(importance);
     headerLayout->addWidget(importanceWidget);
+
+    // Info button (small gear/settings icon)
+    QPushButton* infoButton = new QPushButton("ⓘ");
+    infoButton->setFixedSize(20, 20);
+    infoButton->setFlat(true);
+    infoButton->setStyleSheet(
+        "QPushButton {"
+        "   color: #7f8c8d;"
+        "   font-size: 14px;"
+        "   border: none;"
+        "   background-color: transparent;"
+        "}"
+        "QPushButton:hover {"
+        "   color: #3498db;"
+        "}"
+        "QPushButton:pressed {"
+        "   color: #2980b9;"
+        "}"
+    );
+    infoButton->setCursor(Qt::PointingHandCursor);
+    infoButton->setToolTip("View technical details");
+    connect(infoButton, &QPushButton::clicked, [this, infoButton]() {
+        // Create popup if not exists
+        if (!m_infoPopup) {
+            m_infoPopup = new DriverInfoPopup(m_driver, nullptr);
+        }
+        
+        // Check if popup was just closed
+        if (m_infoPopup->wasRecentlyClosed()) {
+            return;
+        }
+        
+        // Toggle popup
+        if (m_infoPopup->isVisible()) {
+            m_infoPopup->hide();
+        } else {
+            m_infoPopup->showRelativeTo(infoButton);
+        }
+    });
+    headerLayout->addWidget(infoButton);
 
     mainLayout->addLayout(headerLayout);
 

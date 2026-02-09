@@ -3,9 +3,11 @@
 #include <QFrame>
 #include <QLabel>
 #include <QProgressBar>
+#include <QPushButton>
 #include "DriverInfo.h"
 
 class FlagIndicatorWidget;
+class DriverInfoPopup;
 
 class DriverCardWidget : public QFrame
 {
@@ -17,19 +19,19 @@ public:
 private:
     void setupUi(const DriverInfo& driver);
     
-    // Creates the importance indicator (3 squares)
+    /// Creates the importance indicator (3 squares)
     QWidget* createImportanceIndicator(DriverImportance importance);
     
-    // Creates the health bar (0-100)
+    /// Creates the health bar (0-100)
     QWidget* createHealthBar(int healthScore);
     
-    // Returns color based on importance level
+    /// Returns color based on importance level
     QString getImportanceColor(DriverImportance importance);
     
-    // Returns color based on health score
+    /// Returns color based on health score
     QString getHealthColor(int healthScore);
     
-    // Returns color based on driver status
+    /// Returns color based on driver status
     QString getStatusColor(DriverStatus status);
 
     QLabel* m_nameLabel;
@@ -41,4 +43,6 @@ private:
     QProgressBar* m_healthBar;
     QLabel* m_healthPercentLabel;
     FlagIndicatorWidget* m_flagIndicator;
+    DriverInfoPopup* m_infoPopup;
+    DriverInfo m_driver;
 };

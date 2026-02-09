@@ -27,6 +27,8 @@ set(PROJECT_SOURCES
     src/ui/FlagIndicatorWidget.cpp
     src/ui/FlagPopupWidget.h
     src/ui/FlagPopupWidget.cpp
+    src/ui/DriverInfoPopup.h
+    src/ui/DriverInfoPopup.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/models/DriverInfo.h
