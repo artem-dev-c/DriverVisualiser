@@ -23,6 +23,10 @@ set(PROJECT_SOURCES
     src/ui/DriverCardWidget.cpp
     src/ui/CategorySectionWidget.h
     src/ui/CategorySectionWidget.cpp
+    src/ui/FlagIndicatorWidget.h
+    src/ui/FlagIndicatorWidget.cpp
+    src/ui/FlagPopupWidget.h
+    src/ui/FlagPopupWidget.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/models/DriverInfo.h

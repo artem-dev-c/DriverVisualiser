@@ -63,10 +63,10 @@ bool DriverDateFormatter::isDriverDateValid(const std::optional<std::chrono::sys
         return false;
     }
     
-    // Rule 5: Very old dates that are likely placeholders
-    // Many system drivers use dates from 2006
-    // But vendor drivers from 2006+ could be legitimate
-    // We'll be conservative and only reject the specific placeholders above
+    // Rule 5: Intel placeholder date (2009-04-21)
+    if (year == 2009 && month == 4 && day == 21) {
+        return false;
+    }
     
     return true;
 }

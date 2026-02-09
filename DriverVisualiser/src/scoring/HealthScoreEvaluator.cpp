@@ -4,199 +4,202 @@
 #include <windows.h>
 #include <cfgmgr32.h>
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+namespace {
+    constexpr int PENALTY_CRITICAL = -40;
+    constexpr int PENALTY_WARNING_HIGH = -15;
+    constexpr int PENALTY_WARNING = -10;
+    constexpr int PENALTY_CAUTION_HIGH = -5;
+    constexpr int PENALTY_CAUTION_MED = -3;
+    constexpr int PENALTY_CAUTION_LOW = -2;
+    constexpr int PENALTY_NONE = 0;
+
+    constexpr int OUTDATED_THRESHOLD_DAYS = 1095;  // ~3 years
+}
+
+// ============================================================================
+// Main Evaluation
+// ============================================================================
+
 HealthResult HealthScoreEvaluator::evaluate(const DriverInfo& driver)
 {
     HealthResult result;
     result.score = 100;
-    
-    // Evaluate all tiers
+
     evaluateCriticalFlags(driver, result);
     evaluateWarningFlags(driver, result);
     evaluateCautionFlags(driver, result);
     evaluateInfoFlags(driver, result);
-    
-    // Floor at 0
+
     result.score = std::max(0, result.score);
-    
     return result;
 }
 
+// ============================================================================
+// Tier 1: Critical Flags
+// ============================================================================
+
 void HealthScoreEvaluator::evaluateCriticalFlags(const DriverInfo& driver, HealthResult& result)
 {
-    // DRIVER_BLOCKED - highest severity (from rawStatus)
+    // Driver blocked by Windows
     if (driver.rawStatus & DN_DRIVER_BLOCKED) {
-        addFlag(result,
-                L"DRIVER_BLOCKED",
-                L"Driver was blocked by Windows",
-                HealthFlagSeverity::Critical,
-                -40);
+        addFlag(result, L"DRIVER_BLOCKED", L"Driver was blocked by Windows",
+                HealthFlagSeverity::Critical, PENALTY_CRITICAL);
     }
-    
-    // PROBLEM_CODE_CRITICAL - real errors (not user-disabled)
-    // This is our PRIMARY indicator of actual issues
+
+    // Problem code present (real errors only, not user-disabled)
     if (driver.problemCode != 0 && isCriticalProblemCode(driver.problemCode)) {
-        addFlag(result, 
-                L"PROBLEM_CODE_CRITICAL",
-                getProblemCodeDescription(driver.problemCode),
-                HealthFlagSeverity::Critical,
-                -40);
+        addFlag(result, L"PROBLEM_CODE_CRITICAL", getProblemCodeDescription(driver.problemCode),
+                HealthFlagSeverity::Critical, PENALTY_CRITICAL);
     }
 }
+
+// ============================================================================
+// Tier 2: Warning Flags
+// ============================================================================
 
 void HealthScoreEvaluator::evaluateWarningFlags(const DriverInfo& driver, HealthResult& result)
 {
-    // UNSIGNED_DRIVER
+    // Unsigned driver
     if (!driver.isSigned) {
-        addFlag(result,
-                L"UNSIGNED_DRIVER",
-                L"Driver is not digitally signed",
-                HealthFlagSeverity::Warning,
-                -15);
+        addFlag(result, L"UNSIGNED_DRIVER", L"Driver is not digitally signed",
+                HealthFlagSeverity::Warning, PENALTY_WARNING_HIGH);
     }
-    
-    // GHOST_DEVICE - not physically present
+
+    // Ghost device (not physically present)
     if (!driver.isPresent) {
-        addFlag(result,
-                L"GHOST_DEVICE",
-                L"Device is not physically present",
-                HealthFlagSeverity::Warning,
-                -10);
+        addFlag(result, L"GHOST_DEVICE", L"Device is not physically present",
+                HealthFlagSeverity::Warning, PENALTY_WARNING);
     }
-    
-    // NEEDS_RESTART - pending reboot (from rawStatus)
+
+    // Needs restart
     if (driver.rawStatus & DN_NEED_RESTART) {
-        addFlag(result,
-                L"NEEDS_RESTART",
-                L"System restart required to complete driver operation",
-                HealthFlagSeverity::Warning,
-                -10);
+        addFlag(result, L"NEEDS_RESTART", L"System restart required - driver may not function correctly until reboot",
+                HealthFlagSeverity::Warning, PENALTY_WARNING_HIGH);
     }
-    
-    // DEVICE_DISCONNECTED (from rawStatus)
-    // Only flag if not already flagged as ghost
+
+    // Device disconnected (only if not already flagged as ghost)
     if ((driver.rawStatus & DN_DEVICE_DISCONNECTED) && !hasFlag(result, L"GHOST_DEVICE")) {
-        addFlag(result,
-                L"DEVICE_DISCONNECTED",
-                L"Device is disconnected",
-                HealthFlagSeverity::Warning,
-                -10);
+        addFlag(result, L"DEVICE_DISCONNECTED", L"Device is disconnected",
+                HealthFlagSeverity::Warning, PENALTY_WARNING);
     }
-    
-    // OUTDATED_DRIVER - driver date > 3 years old
-    if (driver.driverDate.has_value()) {
-        auto now = std::chrono::system_clock::now();
-        auto nowDays = std::chrono::floor<std::chrono::days>(now);
-        auto driverAge = nowDays - *driver.driverDate;
-        
-        // 3 years = ~1095 days
-        if (driverAge.count() > 1095) {
-            addFlag(result,
-                    L"OUTDATED_DRIVER",
-                    L"Driver is more than 3 years old",
-                    HealthFlagSeverity::Warning,
-                    -10);
-        }
+
+    // Outdated driver check
+    evaluateOutdatedDriver(driver, result);
+}
+
+void HealthScoreEvaluator::evaluateOutdatedDriver(const DriverInfo& driver, HealthResult& result)
+{
+    std::optional<std::chrono::sys_days> dateToCheck;
+    bool usingInstallDate = false;
+
+    // Prefer valid driver date, fall back to install date
+    if (isValidDriverDate(driver.driverDate)) {
+        dateToCheck = driver.driverDate;
+    } else if (driver.installDate.has_value()) {
+        dateToCheck = driver.installDate;
+        usingInstallDate = true;
+    }
+
+    if (!dateToCheck.has_value()) {
+        return;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    auto nowDays = std::chrono::floor<std::chrono::days>(now);
+    auto age = nowDays - *dateToCheck;
+
+    if (age.count() > OUTDATED_THRESHOLD_DAYS) {
+        std::wstring description = usingInstallDate
+            ? L"Driver is at least 3 years old (based on install date)"
+            : L"Driver is more than 3 years old";
+
+        addFlag(result, L"OUTDATED_DRIVER", description,
+                HealthFlagSeverity::Warning, PENALTY_WARNING);
     }
 }
+
+// ============================================================================
+// Tier 3: Caution Flags
+// ============================================================================
 
 void HealthScoreEvaluator::evaluateCautionFlags(const DriverInfo& driver, HealthResult& result)
 {
-    // NO_VERSION_INFO
+    // No version info
     if (!driver.version.hasVersion) {
-        addFlag(result,
-                L"NO_VERSION_INFO",
-                L"No version information available",
-                HealthFlagSeverity::Caution,
-                -5);
+        addFlag(result, L"NO_VERSION_INFO", L"No version information available",
+                HealthFlagSeverity::Caution, PENALTY_CAUTION_HIGH);
     }
-    
-    // NO_DRIVER_DATE
+
+    // No driver date
     if (!driver.driverDate.has_value()) {
-        addFlag(result,
-                L"NO_DRIVER_DATE",
-                L"No driver date information available",
-                HealthFlagSeverity::Caution,
-                -3);
+        addFlag(result, L"NO_DRIVER_DATE", L"No driver date information available",
+                HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
     }
-    
-    // UNKNOWN_MANUFACTURER
+
+    // Unknown manufacturer
     if (driver.manufacturer == L"Unknown" || driver.manufacturer.empty()) {
-        addFlag(result,
-                L"UNKNOWN_MANUFACTURER",
-                L"Manufacturer information is missing",
-                HealthFlagSeverity::Caution,
-                -2);
+        addFlag(result, L"UNKNOWN_MANUFACTURER", L"Manufacturer information is missing",
+                HealthFlagSeverity::Caution, PENALTY_CAUTION_LOW);
     }
 }
 
+// ============================================================================
+// Tier 4: Info Flags (No Penalty)
+// ============================================================================
+
 void HealthScoreEvaluator::evaluateInfoFlags(const DriverInfo& driver, HealthResult& result)
 {
-    // USER_DISABLED - user intentionally disabled (not a health issue)
+    // User-disabled device (shows as Critical/red but no penalty - intentional action)
     if (driver.problemCode == CM_PROB_DISABLED) {
-        addFlag(result,
-                L"USER_DISABLED",
-                L"Device was disabled by user",
-                HealthFlagSeverity::Info,
-                0);
+        addFlag(result, L"USER_DISABLED", L"Device was disabled by user",
+                HealthFlagSeverity::Critical, PENALTY_NONE);
     }
-    
-    // NOT_STARTED_BY_DESIGN - device not started but no problem code
-    // This is normal for resource/stub devices like "Motherboard resources"
+
+    // Not started by design (normal for resource devices)
     if (driver.status == DriverStatus::NotStarted && driver.problemCode == 0) {
-        addFlag(result,
-                L"NOT_STARTED_BY_DESIGN",
-                L"Device is not started (normal for resource devices)",
-                HealthFlagSeverity::Info,
-                0);
+        addFlag(result, L"NOT_STARTED_BY_DESIGN", L"Device is not started (normal for resource devices)",
+                HealthFlagSeverity::Info, PENALTY_NONE);
     }
-    
-    // DRIVER_NOT_LOADED_BY_DESIGN - driver not loaded but no problem
-    // Similar to above - some devices don't need active drivers
+
+    // Driver not loaded by design
     if (!(driver.rawStatus & DN_DRIVER_LOADED) && driver.problemCode == 0) {
-        // Don't duplicate if already flagged as not started
         if (!hasFlag(result, L"NOT_STARTED_BY_DESIGN")) {
-            addFlag(result,
-                    L"DRIVER_NOT_LOADED_BY_DESIGN",
-                    L"No driver loaded (normal for some devices)",
-                    HealthFlagSeverity::Info,
-                    0);
+            addFlag(result, L"DRIVER_NOT_LOADED_BY_DESIGN", L"No driver loaded (normal for some devices)",
+                    HealthFlagSeverity::Info, PENALTY_NONE);
         }
     }
-    
-    // SYSTEM_CRITICAL - cannot be disabled (from rawStatus)
+
+    // System critical device
     if (!(driver.rawStatus & DN_DISABLEABLE)) {
-        addFlag(result,
-                L"SYSTEM_CRITICAL",
-                L"System-critical device (cannot be disabled)",
-                HealthFlagSeverity::Info,
-                0);
+        addFlag(result, L"SYSTEM_CRITICAL", L"System-critical device (cannot be disabled)",
+                HealthFlagSeverity::Info, PENALTY_NONE);
     }
-    
-    // VIRTUAL_DEVICE - software device, not physical hardware
+
+    // Virtual device
     if (!driver.hardwareId.empty()) {
-        std::wstring hwid = driver.hardwareId;
-        if (hwid.find(L"SWD\\") == 0 || 
-            hwid.find(L"SW\\") == 0 ||
-            hwid.find(L"ROOT\\") == 0 ||
-            hwid.find(L"UMB\\") == 0) {
-            addFlag(result,
-                    L"VIRTUAL_DEVICE",
-                    L"This is a virtual/software device",
-                    HealthFlagSeverity::Info,
-                    0);
+        const std::wstring& hwid = driver.hardwareId;
+        if (hwid.find(L"SWD\\") == 0 || hwid.find(L"SW\\") == 0 ||
+            hwid.find(L"ROOT\\") == 0 || hwid.find(L"UMB\\") == 0) {
+            addFlag(result, L"VIRTUAL_DEVICE", L"This is a virtual/software device",
+                    HealthFlagSeverity::Info, PENALTY_NONE);
         }
     }
-    
-    // GENERIC_DRIVER - Microsoft inbox driver
+
+    // Generic Microsoft driver
     if (driver.provider.find(L"Microsoft") != std::wstring::npos ||
         driver.manufacturer.find(L"Microsoft") != std::wstring::npos) {
-        addFlag(result,
-                L"GENERIC_DRIVER",
-                L"Using Microsoft generic driver",
-                HealthFlagSeverity::Info,
-                0);
+        addFlag(result, L"GENERIC_DRIVER", L"Using Microsoft generic driver",
+                HealthFlagSeverity::Info, PENALTY_NONE);
     }
 }
+
+// ============================================================================
+// Helper Methods
+// ============================================================================
 
 bool HealthScoreEvaluator::hasFlag(const HealthResult& result, const std::wstring& flagId)
 {
@@ -208,56 +211,69 @@ bool HealthScoreEvaluator::hasFlag(const HealthResult& result, const std::wstrin
     return false;
 }
 
-void HealthScoreEvaluator::addFlag(HealthResult& result,
-                                   const std::wstring& id,
+void HealthScoreEvaluator::addFlag(HealthResult& result, const std::wstring& id,
                                    const std::wstring& description,
-                                   HealthFlagSeverity severity,
-                                   int penalty)
+                                   HealthFlagSeverity severity, int penalty)
 {
     HealthFlag flag;
     flag.id = id;
     flag.description = description;
     flag.severity = severity;
     flag.penalty = penalty;
-    
+
     result.flags.push_back(flag);
-    result.score += penalty;  // penalty is negative, so this subtracts
+    result.score += penalty;
 }
 
 bool HealthScoreEvaluator::isCriticalProblemCode(uint32_t problemCode)
 {
-    // User-disabled is NOT a critical problem - it's intentional
-    if (problemCode == CM_PROB_DISABLED) {
-        return false;
-    }
-    
-    // All other non-zero problem codes indicate real issues
-    return true;
+    // User-disabled is intentional, not a critical problem
+    return problemCode != CM_PROB_DISABLED;
 }
 
 std::wstring HealthScoreEvaluator::getProblemCodeDescription(uint32_t problemCode)
 {
-    // Map common problem codes to human-readable descriptions
     switch (problemCode) {
-        case CM_PROB_NOT_CONFIGURED:       // 1
-            return L"No driver installed for this device";
-        case CM_PROB_OUT_OF_MEMORY:        // 3
-            return L"Out of memory";
-        case CM_PROB_FAILED_START:         // 10
-            return L"Device failed to start";
-        case CM_PROB_DEVICE_NOT_THERE:     // 24
-            return L"Device hardware not found";
-        case CM_PROB_DRIVER_FAILED_LOAD:   // 39
-            return L"Driver failed to load";
-        case CM_PROB_DRIVER_BLOCKED:       // 48
-            return L"Driver is blocked";
-        case CM_PROB_FAILED_POST_START:    // 43
-            return L"Device failed after starting";
-        case CM_PROB_DISABLED:             // 22
-            return L"Device is disabled";
-        case CM_PROB_FAILED_INSTALL:       // 28
-            return L"Device installation failed";
+        case CM_PROB_NOT_CONFIGURED:    return L"No driver installed for this device";
+        case CM_PROB_OUT_OF_MEMORY:     return L"Out of memory";
+        case CM_PROB_FAILED_START:      return L"Device failed to start";
+        case CM_PROB_DEVICE_NOT_THERE:  return L"Device hardware not found";
+        case CM_PROB_DRIVER_FAILED_LOAD: return L"Driver failed to load";
+        case CM_PROB_DRIVER_BLOCKED:    return L"Driver is blocked";
+        case CM_PROB_FAILED_POST_START: return L"Device failed after starting";
+        case CM_PROB_DISABLED:          return L"Device is disabled";
+        case CM_PROB_FAILED_INSTALL:    return L"Device installation failed";
         default:
             return L"Device has a problem (code: " + std::to_wstring(problemCode) + L")";
     }
+}
+
+bool HealthScoreEvaluator::isValidDriverDate(const std::optional<std::chrono::sys_days>& date)
+{
+    if (!date.has_value()) {
+        return false;
+    }
+
+    auto ymd = std::chrono::year_month_day{*date};
+    int year = static_cast<int>(ymd.year());
+    unsigned month = static_cast<unsigned>(ymd.month());
+    unsigned day = static_cast<unsigned>(ymd.day());
+
+    // Basic range check
+    if (year < 2001 || year > 2100) {
+        return false;
+    }
+
+    // Known placeholder dates
+    // Microsoft: 2006-06-21, 2006-06-01
+    if (year == 2006 && month == 6 && (day == 21 || day == 1)) {
+        return false;
+    }
+
+    // Intel: 2009-04-21
+    if (year == 2009 && month == 4 && day == 21) {
+        return false;
+    }
+
+    return true;
 }

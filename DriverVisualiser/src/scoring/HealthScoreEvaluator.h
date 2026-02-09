@@ -3,37 +3,55 @@
 #include "HealthFlag.h"
 #include "DriverInfo.h"
 
+/**
+ * @class HealthScoreEvaluator
+ * @brief Evaluates driver health based on various indicators.
+ *
+ * Analyzes driver properties and status to produce a health score (0-100)
+ * and a list of detected flags categorized by severity.
+ *
+ * Scoring tiers:
+ *   - Critical: Severe issues (blocked, failed) -> -40 penalty
+ *   - Warning:  Moderate concerns (unsigned, outdated) -> -10 to -15 penalty
+ *   - Caution:  Minor issues (missing info) -> -2 to -5 penalty
+ *   - Info:     Informational only -> no penalty
+ */
 class HealthScoreEvaluator {
 public:
     /// Evaluates driver health and returns score + flags
     static HealthResult evaluate(const DriverInfo& driver);
 
 private:
-    /// Check Tier 1: Critical flags
+    /// Tier 1: Critical issues (blocked drivers, problem codes)
     static void evaluateCriticalFlags(const DriverInfo& driver, HealthResult& result);
-    
-    /// Check Tier 2: Warning flags
+
+    /// Tier 2: Warning issues (unsigned, outdated, disconnected)
     static void evaluateWarningFlags(const DriverInfo& driver, HealthResult& result);
-    
-    /// Check Tier 3: Caution flags
+
+    /// Helper for evaluateWarningFlags: checks driver age
+    static void evaluateOutdatedDriver(const DriverInfo& driver, HealthResult& result);
+
+    /// Tier 3: Caution issues (missing metadata)
     static void evaluateCautionFlags(const DriverInfo& driver, HealthResult& result);
-    
-    /// Check Tier 4: Info flags (no penalty)
+
+    /// Tier 4: Info flags (no penalty, informational)
     static void evaluateInfoFlags(const DriverInfo& driver, HealthResult& result);
-    
-    /// Helper: Check if a flag ID already exists (for overlap prevention)
+
+    // --- Helpers ---
+
+    /// Checks if a flag already exists (for overlap prevention)
     static bool hasFlag(const HealthResult& result, const std::wstring& flagId);
-    
-    /// Helper: Add a flag to result
-    static void addFlag(HealthResult& result, 
-                        const std::wstring& id,
-                        const std::wstring& description,
-                        HealthFlagSeverity severity,
-                        int penalty);
-    
-    /// Helper: Check if problem code is a real error (not user-disabled)
+
+    /// Adds a flag and applies its penalty
+    static void addFlag(HealthResult& result, const std::wstring& id, const std::wstring& description,
+                        HealthFlagSeverity severity, int penalty);
+
+    /// Returns true if problem code indicates a real error (not user-disabled)
     static bool isCriticalProblemCode(uint32_t problemCode);
-    
-    /// Helper: Get human-readable description for problem code
+
+    /// Converts problem code to human-readable description
     static std::wstring getProblemCodeDescription(uint32_t problemCode);
+
+    /// Validates if a driver date is real (not a placeholder)
+    static bool isValidDriverDate(const std::optional<std::chrono::sys_days>& date);
 };

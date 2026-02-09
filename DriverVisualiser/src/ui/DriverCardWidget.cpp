@@ -3,9 +3,11 @@
 #include "DriverStatusFormatter.h"
 #include "DriverImportanceEvaluator.h"
 #include "DriverDateFormatter.h"
+#include "FlagIndicatorWidget.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QApplication>
 #include <QPalette>
 #include <QProgressBar>
@@ -39,11 +41,6 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
         deviceName = QString::fromStdWString(driver.name);
     }
 
-    // DEBUG: Append problem code to name if present
-    if (driver.problemCode != 0) {
-        deviceName += QString(" [PC:%1]").arg(driver.problemCode);
-    }
-
     m_nameLabel = new QLabel(deviceName);
     QFont nameFont = m_nameLabel->font();
     nameFont.setPointSize(10);
@@ -58,51 +55,74 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
 
     mainLayout->addLayout(headerLayout);
 
-    // === Details row: Version, Manufacturer, Status ===
-    QHBoxLayout* detailsLayout = new QHBoxLayout();
-    detailsLayout->setSpacing(20);
+    // === Content area: Details (left) + Flag Indicator (right) ===
+    QHBoxLayout* contentLayout = new QHBoxLayout();
+    contentLayout->setSpacing(15);
 
-    // Version
+    // Left side: Two rows of details
+    QVBoxLayout* detailsLayout = new QVBoxLayout();
+    detailsLayout->setSpacing(4);
+
+    // Row 1: Version, Manufacturer
+    QHBoxLayout* row1Layout = new QHBoxLayout();
+    row1Layout->setSpacing(20);
+
     QString versionText = "Version: " + DriverVersionFormatter::versionToString(driver.version);
     m_versionLabel = new QLabel(versionText);
-    detailsLayout->addWidget(m_versionLabel);
+    row1Layout->addWidget(m_versionLabel);
 
-    // Manufacturer
     QString manufacturerText = "Manufacturer: " + QString::fromStdWString(driver.manufacturer);
     m_manufacturerLabel = new QLabel(manufacturerText);
-    detailsLayout->addWidget(m_manufacturerLabel);
+    row1Layout->addWidget(m_manufacturerLabel);
 
-    // Status (keep color coding for this one - it's meaningful)
+    row1Layout->addStretch();
+    detailsLayout->addLayout(row1Layout);
+
+    // Row 2: Status, Driver Date, Installed, Health
+    QHBoxLayout* row2Layout = new QHBoxLayout();
+    row2Layout->setSpacing(15);
+
+    // Status (color coded)
     QString statusText = DriverStatusFormatter::statusToString(driver.status);
     m_statusLabel = new QLabel("Status: " + statusText);
     QString statusColor = getStatusColor(driver.status);
     m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(statusColor));
-    detailsLayout->addWidget(m_statusLabel);
+    row2Layout->addWidget(m_statusLabel);
 
-    // Driver date (from INF - when driver was built/released)
+    // Driver date
     QString driverDateText = DriverDateFormatter::isDriverDateValid(driver.driverDate) 
         ? DriverDateFormatter::dateToString(driver.driverDate) 
         : "Unknown";
     m_driverDateLabel = new QLabel("Driver Date: " + driverDateText);
-    detailsLayout->addWidget(m_driverDateLabel);
+    row2Layout->addWidget(m_driverDateLabel);
 
-    // Install date (when installed on this system)
+    // Install date
     QString installDateText = DriverDateFormatter::dateToString(driver.installDate);
     m_installDateLabel = new QLabel("Installed: " + installDateText);
-    detailsLayout->addWidget(m_installDateLabel);
+    row2Layout->addWidget(m_installDateLabel);
 
-    // Health bar (compact, inline)
-    int healthScore = driver.healthScore;
-    
+    // Health bar
     QLabel* healthLabel = new QLabel("Health:");
-    detailsLayout->addWidget(healthLabel);
+    row2Layout->addWidget(healthLabel);
     
-    QWidget* healthBar = createHealthBar(healthScore);
-    detailsLayout->addWidget(healthBar);
+    QWidget* healthBar = createHealthBar(driver.healthScore);
+    row2Layout->addWidget(healthBar);
+    
+    // Health percentage
+    m_healthPercentLabel = new QLabel(QString("%1%").arg(driver.healthScore));
+    m_healthPercentLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(getHealthColor(driver.healthScore)));
+    row2Layout->addWidget(m_healthPercentLabel);
 
-    detailsLayout->addStretch();
+    row2Layout->addStretch();
+    detailsLayout->addLayout(row2Layout);
 
-    mainLayout->addLayout(detailsLayout);
+    contentLayout->addLayout(detailsLayout, 1);
+
+    // Right side: Flag indicator (spans both rows visually)
+    m_flagIndicator = new FlagIndicatorWidget(driver.healthFlags);
+    contentLayout->addWidget(m_flagIndicator);
+
+    mainLayout->addLayout(contentLayout);
 }
 
 QWidget* DriverCardWidget::createHealthBar(int healthScore)

@@ -5,6 +5,8 @@
 #include <QProgressBar>
 #include "DriverInfo.h"
 
+class FlagIndicatorWidget;
+
 class DriverCardWidget : public QFrame
 {
     Q_OBJECT
@@ -37,4 +39,6 @@ private:
     QLabel* m_driverDateLabel;
     QLabel* m_installDateLabel;
     QProgressBar* m_healthBar;
+    QLabel* m_healthPercentLabel;
+    FlagIndicatorWidget* m_flagIndicator;
 };
