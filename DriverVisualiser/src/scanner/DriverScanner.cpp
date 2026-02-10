@@ -53,6 +53,8 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers()
             wchar_t parentId[MAX_DEVICE_ID_LEN];
             if (CM_Get_Device_IDW(parentDevInst, parentId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
                 info.parentInstanceId = parentId;
+                // Get parent status
+                info.parentStatus = getDeviceStatus(parentDevInst);
             }
         }
 

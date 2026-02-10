@@ -108,6 +108,12 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
         : "Not available";
     layout->addWidget(createCopyableFieldRow("Parent Device", parentId));
     
+    // Parent status (if parent exists)
+    if (!driver.parentInstanceId.empty()) {
+        QString parentStatus = DriverStatusFormatter::statusToString(driver.parentStatus);
+        layout->addWidget(createFieldRow("Parent Status", parentStatus));
+    }
+    
     layout->addSpacing(8);
     
     // === Driver Details Section ===
@@ -400,6 +406,9 @@ QString DriverInfoPopup::generateFullReport(const DriverInfo& driver, const Syst
         ? QString::fromStdWString(driver.parentInstanceId)
         : "Not available"
     );
+    if (!driver.parentInstanceId.empty()) {
+        report += QString("Parent Status: %1\n").arg(DriverStatusFormatter::statusToString(driver.parentStatus));
+    }
     report += QString("Location:     %1\n\n").arg(
         !driver.locationPath.empty()
         ? QString::fromStdWString(driver.locationPath)
