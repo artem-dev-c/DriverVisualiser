@@ -4,6 +4,7 @@
 #include "DriverImportanceEvaluator.h"
 #include "DriverDateFormatter.h"
 #include "FlagIndicatorWidget.h"
+#include "ErrorLogIndicatorWidget.h"
 #include "DriverInfoPopup.h"
 
 #include <QVBoxLayout>
@@ -160,6 +161,10 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     detailsLayout->addLayout(row2Layout);
 
     contentLayout->addLayout(detailsLayout, 1);
+
+    // Middle: Error log indicator
+    m_errorLogIndicator = new ErrorLogIndicatorWidget(driver.errorLog);
+    contentLayout->addWidget(m_errorLogIndicator);
 
     // Right side: Flag indicator (spans both rows visually)
     m_flagIndicator = new FlagIndicatorWidget(driver.healthFlags);

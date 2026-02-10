@@ -8,6 +8,7 @@
 
 class FlagIndicatorWidget;
 class DriverInfoPopup;
+class ErrorLogIndicatorWidget;
 
 class DriverCardWidget : public QFrame
 {
@@ -43,6 +44,7 @@ private:
     QProgressBar* m_healthBar;
     QLabel* m_healthPercentLabel;
     FlagIndicatorWidget* m_flagIndicator;
+    ErrorLogIndicatorWidget* m_errorLogIndicator;
     DriverInfoPopup* m_infoPopup;
     DriverInfo m_driver;
 };

@@ -6,6 +6,7 @@
 #include <optional>
 #include <guiddef.h>
 #include "HealthFlag.h"
+#include "ErrorLogEntry.h"
 
 enum class DriverImportance {
     Critical,
@@ -67,4 +68,5 @@ struct DriverInfo {
     bool isSigned = true;                               ///< Indicates if the driver is digitally signed
     int healthScore = 100;                              ///< Calculated health score (0-100, 100 = healthy)
     std::vector<HealthFlag> healthFlags;                ///< Detected health issues/info flags
+    std::vector<ErrorLogEntry> errorLog;                ///< Error log entries from last 7 days                ///< Detected health issues/info flags
 };

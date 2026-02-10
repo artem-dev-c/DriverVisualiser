@@ -29,14 +29,21 @@ set(PROJECT_SOURCES
     src/ui/FlagPopupWidget.cpp
     src/ui/DriverInfoPopup.h
     src/ui/DriverInfoPopup.cpp
+    src/ui/ErrorLogIndicatorWidget.h
+    src/ui/ErrorLogIndicatorWidget.cpp
+    src/ui/ErrorLogPopupWidget.h
+    src/ui/ErrorLogPopupWidget.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/scanner/SystemInfoCollector.h
     src/scanner/SystemInfoCollector.cpp
+    src/scanner/ErrorLogReader.h
+    src/scanner/ErrorLogReader.cpp
     src/models/DriverInfo.h
     src/models/DeviceCategory.h
     src/models/HealthFlag.h
-    SRC/MODELS/Systeminfo.h
+    src/models/SystemInfo.h
+    src/models/ErrorLogEntry.h
     src/formatter/DriverDateFormatter.cpp
     src/formatter/DriverDateFormatter.h
     src/formatter/DriverStatusFormatter.cpp
@@ -80,6 +87,7 @@ target_link_libraries(DriverVisualiser
     Qt${QT_VERSION_MAJOR}::Widgets
     setupapi
     cfgmgr32
+    wevtapi
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

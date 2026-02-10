@@ -2,6 +2,7 @@
 #include "./ui_mainwindow.h"
 #include "CategoryGrouper.h"
 #include "DriverScanner.h"
+#include "ErrorLogReader.h"
 #include "CategorySectionWidget.h"
 #include "DriverCardWidget.h"
 
@@ -48,6 +49,9 @@ void MainWindow::populateDriverList()
     // Scan for drivers
     DriverScanner scanner;
     auto drivers = scanner.fetchDrivers();
+    // Populate error logs (query event log once for all drivers)
+    ErrorLogReader::populateErrorLogs(drivers);
+
 
     // Group by category
     auto categories = CategoryGrouper::groupByCategory(drivers);
