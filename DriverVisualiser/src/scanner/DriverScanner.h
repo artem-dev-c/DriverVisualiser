@@ -41,6 +41,8 @@ private:
 
     /// Reads a FILETIME property and converts to sys_days
     std::optional<std::chrono::sys_days> getDevicePropertyFileTime(HDEVINFO hDevInfo, PSP_DEVINFO_DATA devInfoData, const DEVPROPKEY* key);
+    /// Gets list of driver files for a device
+    std::vector<std::wstring> getDriverFiles(HDEVINFO hDevInfo, PSP_DEVINFO_DATA devInfoData);
 
     /// Determines device status from CM_Get_DevNode_Status flags
     DriverStatus getDeviceStatus(DEVINST devInst);

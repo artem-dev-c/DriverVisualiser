@@ -97,6 +97,9 @@ std::vector<DriverInfo> DriverScanner::fetchDrivers()
         // === INF Path ===
         info.driverInfPath = getDeviceProperty(hDevInfo, &devInfoData, &DEVPKEY_Device_DriverInfPath);
 
+        // === Driver Files ===
+        info.driverFiles = getDriverFiles(hDevInfo, &devInfoData);
+
         // === Defaults ===
         info.isSigned = true;  // TODO: Implement actual signature check
 
@@ -244,4 +247,68 @@ std::optional<std::chrono::sys_days> DriverScanner::getDevicePropertyFileTime(HD
     }
 
     return std::nullopt;
+}
+std::vector<std::wstring> DriverScanner::getDriverFiles(HDEVINFO hDevInfo, PSP_DEVINFO_DATA devInfoData)
+{
+    std::vector<std::wstring> files;
+    
+    // Get driver info data to access file list
+    SP_DRVINFO_DATA drvInfoData;
+    drvInfoData.cbSize = sizeof(SP_DRVINFO_DATA);
+    
+    // Build driver list for this device
+    if (!SetupDiBuildDriverInfoList(hDevInfo, devInfoData, SPDIT_COMPATDRIVER)) {
+        return files;
+    }
+    
+    // Get the selected/installed driver (index 0)
+    if (!SetupDiEnumDriverInfo(hDevInfo, devInfoData, SPDIT_COMPATDRIVER, 0, &drvInfoData)) {
+        SetupDiDestroyDriverInfoList(hDevInfo, devInfoData, SPDIT_COMPATDRIVER);
+        return files;
+    }
+    
+    // Get driver detail info (includes file paths)
+    DWORD requiredSize = 0;
+    SetupDiGetDriverInfoDetailW(hDevInfo, devInfoData, &drvInfoData, nullptr, 0, &requiredSize);
+    
+    if (requiredSize > 0) {
+        // Allocate buffer for detail structure
+        std::vector<BYTE> buffer(requiredSize);
+        PSP_DRVINFO_DETAIL_DATA detailData = reinterpret_cast<PSP_DRVINFO_DETAIL_DATA>(buffer.data());
+        detailData->cbSize = sizeof(SP_DRVINFO_DETAIL_DATA);
+        
+        if (SetupDiGetDriverInfoDetailW(hDevInfo, devInfoData, &drvInfoData, 
+                                         detailData, requiredSize, nullptr)) {
+            // The InfFileName contains the FULL path to the INF in DriverStore
+            if (detailData->InfFileName[0] != L'\0') {
+                std::wstring fullInfPath = detailData->InfFileName;
+                files.push_back(fullInfPath);
+                
+                // Extract directory from full INF path
+                size_t lastSlash = fullInfPath.find_last_of(L"\\");
+                if (lastSlash != std::wstring::npos) {
+                    std::wstring infDir = fullInfPath.substr(0, lastSlash);
+                    
+                    // Find all .sys files in the same directory
+                    std::wstring sysPattern = infDir + L"\\*.sys";
+                    
+                    WIN32_FIND_DATAW findData;
+                    HANDLE hFind = FindFirstFileW(sysPattern.c_str(), &findData);
+                    
+                    if (hFind != INVALID_HANDLE_VALUE) {
+                        do {
+                            std::wstring sysPath = infDir + L"\\" + findData.cFileName;
+                            files.push_back(sysPath);
+                        } while (FindNextFileW(hFind, &findData));
+                        FindClose(hFind);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Clean up driver info list
+    SetupDiDestroyDriverInfoList(hDevInfo, devInfoData, SPDIT_COMPATDRIVER);
+    
+    return files;
 }

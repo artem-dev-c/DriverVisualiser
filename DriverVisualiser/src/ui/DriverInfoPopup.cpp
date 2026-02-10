@@ -2,6 +2,7 @@
 #include "DriverVersionFormatter.h"
 #include "DriverStatusFormatter.h"
 #include "DriverDateFormatter.h"
+#include "SystemInfoCollector.h"
 
 #include <QApplication>
 #include <QScreen>
@@ -17,6 +18,7 @@
 DriverInfoPopup::DriverInfoPopup(const DriverInfo& driver, QWidget* parent)
     : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint)
     , m_driver(driver)
+    , m_systemInfo(SystemInfoCollector::collect())
 {
     setAttribute(Qt::WA_DeleteOnClose, false);
     
@@ -124,12 +126,22 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
         : "Not available";
     layout->addWidget(createFieldRow("Install Date", installDate));
     
-    QString infPath = !driver.driverInfPath.empty() 
-        ? QString::fromStdWString(driver.driverInfPath) 
-        : "Not available";
+    // INF Path - prefer full path from driverFiles, fall back to property
+    QString infPath = "Not available";
+    if (!driver.driverFiles.empty()) {
+        // First file is the full INF path
+        QString firstFile = QString::fromStdWString(driver.driverFiles[0]);
+        if (firstFile.endsWith(".inf", Qt::CaseInsensitive)) {
+            infPath = firstFile;
+        }
+    }
+    // Fallback to property if driverFiles didn't have it
+    if (infPath == "Not available" && !driver.driverInfPath.empty()) {
+        infPath = QString::fromStdWString(driver.driverInfPath);
+    }
     layout->addWidget(createCopyableFieldRow("INF Path", infPath));
     
-    layout->addSpacing(6);
+    layout->addSpacing(8);
     
     // === Status Information Section ===
     layout->addWidget(createSectionHeader("Status Information"));
@@ -164,14 +176,15 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
     buttonLayout->setContentsMargins(12, 8, 12, 11);
     
     QPushButton* copyAllButton = new QPushButton("Copy All");
+    copyAllButton->setFixedSize(100, 32);
     copyAllButton->setStyleSheet(
         "QPushButton {"
         "   background-color: #3498db;"
         "   color: white;"
         "   border: none;"
         "   border-radius: 4px;"
-        "   padding: 6px 16px;"
         "   font-weight: bold;"
+        "   font-size: 11px;"
         "}"
         "QPushButton:hover {"
         "   background-color: #2980b9;"
@@ -181,7 +194,7 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
         "}"
     );
     connect(copyAllButton, &QPushButton::clicked, [this, copyAllButton]() {
-        QString fullReport = generateFullReport(m_driver);
+        QString fullReport = generateFullReport(m_driver, m_systemInfo);
         copyToClipboard(fullReport, copyAllButton);
     });
     
@@ -337,15 +350,32 @@ void DriverInfoPopup::copyToClipboard(const QString& text, QPushButton* button)
     });
 }
 
-QString DriverInfoPopup::generateFullReport(const DriverInfo& driver)
+QString DriverInfoPopup::generateFullReport(const DriverInfo& driver, const SystemInfo& sysInfo)
 {
     QString report;
     
-    // Header
+    // System Information Header
+    report += "SYSTEM INFORMATION\n";
+    report += QString("-").repeated(60) + "\n";
+    
+    // Build full OS version string
+    QString osVersion = QString::fromStdWString(sysInfo.osName);
+    if (!sysInfo.displayVersion.empty() && sysInfo.displayVersion != L"Unknown") {
+        osVersion += " " + QString::fromStdWString(sysInfo.displayVersion);
+    }
+    osVersion += QString(" (Build %1.%2)")
+        .arg(QString::fromStdWString(sysInfo.buildNumber))
+        .arg(QString::fromStdWString(sysInfo.ubr));
+    
+    report += QString("OS:           %1\n").arg(osVersion);
+    report += QString("Architecture: %1\n").arg(QString::fromStdWString(sysInfo.architecture));
+    report += QString("Generated:    %1\n\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    
+    // Device Report Header
     QString deviceName = !driver.name.empty() 
         ? QString::fromStdWString(driver.name) 
         : "Unknown Device";
-    report += deviceName + " - Technical Report\n";
+    report += deviceName + " - Driver Report\n";
     report += QString("=").repeated(60) + "\n\n";
     
     // Device Information
@@ -390,7 +420,16 @@ QString DriverInfoPopup::generateFullReport(const DriverInfo& driver)
         ? DriverDateFormatter::dateToString(driver.installDate)
         : "Not available"
     );
-    report += QString("INF Path:     %1\n\n").arg(QString::fromStdWString(driver.driverInfPath));
+    
+    // INF Path - use full path from driverFiles if available
+    QString infPathReport = QString::fromStdWString(driver.driverInfPath);
+    if (!driver.driverFiles.empty()) {
+        QString firstFile = QString::fromStdWString(driver.driverFiles[0]);
+        if (firstFile.endsWith(".inf", Qt::CaseInsensitive)) {
+            infPathReport = firstFile;
+        }
+    }
+    report += QString("INF Path:     %1\n\n").arg(infPathReport);
     
     // Status Information
     report += "STATUS INFORMATION\n";

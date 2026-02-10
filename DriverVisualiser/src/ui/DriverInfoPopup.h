@@ -5,6 +5,7 @@
 #include <QVBoxLayout>
 #include <QPushButton>
 #include "DriverInfo.h"
+#include "SystemInfo.h"
 
 /**
  * @class DriverInfoPopup
@@ -47,8 +48,9 @@ private:
     void copyToClipboard(const QString& text, QPushButton* button);
     
     /// Generate full text for "Copy All" button
-    QString generateFullReport(const DriverInfo& driver);
+    QString generateFullReport(const DriverInfo& driver, const SystemInfo& sysInfo);
     
     qint64 m_closeTime = 0;
     DriverInfo m_driver;
+    SystemInfo m_systemInfo;
 };

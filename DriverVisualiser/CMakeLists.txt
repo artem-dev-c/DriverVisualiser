@@ -31,9 +31,12 @@ set(PROJECT_SOURCES
     src/ui/DriverInfoPopup.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
+    src/scanner/SystemInfoCollector.h
+    src/scanner/SystemInfoCollector.cpp
     src/models/DriverInfo.h
     src/models/DeviceCategory.h
     src/models/HealthFlag.h
+    SRC/MODELS/Systeminfo.h
     src/formatter/DriverDateFormatter.cpp
     src/formatter/DriverDateFormatter.h
     src/formatter/DriverStatusFormatter.cpp
