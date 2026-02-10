@@ -18,8 +18,8 @@ ErrorLogIndicatorWidget::ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry
 void ErrorLogIndicatorWidget::setupUi()
 {
     setFixedHeight(40);
-    setMinimumWidth(200);
-    setMaximumWidth(240);
+    setMinimumWidth(180);
+    setMaximumWidth(220);
     
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 6, 10, 6);
@@ -63,11 +63,11 @@ void ErrorLogIndicatorWidget::updateAppearance()
         
         QString text;
         if (critical > 0) {
-            text = QString("%1 critical, %2 errors in last 7 days").arg(critical).arg(errors);
+            text = QString("%1 critical, %2 errors").arg(critical).arg(errors);
         } else if (errors > 0) {
-            text = QString("%1 errors in last 7 days").arg(errors);
+            text = QString("%1 errors (7 days)").arg(errors);
         } else {
-            text = QString("%1 warnings in last 7 days").arg(warnings);
+            text = QString("%1 warnings (7 days)").arg(warnings);
         }
         
         m_textLabel->setText(text);

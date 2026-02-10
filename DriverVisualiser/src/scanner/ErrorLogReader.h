@@ -28,6 +28,12 @@ public:
     
     /// Populate errorLog field for all drivers
     static void populateErrorLogs(std::vector<DriverInfo>& drivers);
+    
+    /// Extract EventData field from XML (used by event message builder)
+    static std::optional<std::wstring> extractEventDataField(
+        const std::wstring& xml, 
+        const std::wstring& fieldName
+    );
 
 private:
     /// Parse single event handle into ErrorLogEntry
@@ -41,10 +47,4 @@ private:
     
     /// Extract timestamp from XML
     static std::chrono::system_clock::time_point extractTimestamp(const std::wstring& xml);
-    
-    /// Extract EventData field (e.g., DeviceInstanceId)
-    static std::optional<std::wstring> extractEventDataField(
-        const std::wstring& xml, 
-        const std::wstring& fieldName
-    );
 };

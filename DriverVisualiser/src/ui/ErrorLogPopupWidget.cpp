@@ -95,10 +95,26 @@ QLabel* ErrorLogPopupWidget::createSectionHeader(const QString& title)
 {
     QLabel* header = new QLabel(title);
     header->setStyleSheet(
-        "color: #ddd;"
-        "font-size: 12px;"
+        "color: #5dade2;"
         "font-weight: bold;"
+        "font-size: 12px;"
         "padding-top: 6px;"
+        "padding-bottom: 4px;"
+        "color: #5dade2;"
+        "font-weight: bold;"
+        "font-size: 12px;"
+        "padding-top: 6px;"
+        "padding-bottom: 4px;"
+        "color: #5dade2;"
+        "font-weight: bold;"
+        "font-size: 12px;"
+        "padding-top: 6px;"
+        "padding-bottom: 4px;"
+        "color: #5dade2;"
+        "font-weight: bold;"
+        "font-size: 12px;"
+        "padding-top: 6px;"
+        "padding-bottom: 4px;"
     );
     return header;
 }
