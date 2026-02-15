@@ -58,6 +58,8 @@ set(PROJECT_SOURCES
     src/scoring/HealthScoreEvaluator.h
     src/grouper/CategoryGrouper.cpp
     src/grouper/CategoryGrouper.h
+    src/grouper/CategoryProcessor.cpp
+    src/grouper/CategoryProcessor.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
