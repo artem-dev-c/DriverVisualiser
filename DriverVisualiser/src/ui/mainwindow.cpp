@@ -7,8 +7,10 @@
 #include "ErrorLogReader.h"
 #include "HealthScoreEvaluator.h"
 #include "CategorySectionWidget.h"
+#include "SearchFilterBar.h"
 #include <QScreen>
 #include <QGuiApplication>
+#include <algorithm>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -64,6 +66,22 @@ void MainWindow::populateDriverList()
         mainLayout->setSpacing(0);
     }
 
+    // === Search/Filter Bar at Top ===
+    SearchFilterBar* searchBar = new SearchFilterBar();
+    
+    // Wrap in centered container (70% width like sections)
+    QWidget* searchWrapper = new QWidget();
+    searchWrapper->setStyleSheet("QWidget { background-color: transparent; }");
+    QHBoxLayout* searchWrapperLayout = new QHBoxLayout(searchWrapper);
+    searchWrapperLayout->setContentsMargins(0, 0, 0, 0);
+    searchWrapperLayout->setSpacing(0);
+    searchWrapperLayout->addStretch(15);
+    searchWrapperLayout->addWidget(searchBar, 70);
+    searchWrapperLayout->addStretch(15);
+    
+    mainLayout->addWidget(searchWrapper);
+    mainLayout->addSpacing(12);  // Space after search bar
+
     // Create centered wrapper widget with max width
     QWidget* wrapperWidget = new QWidget();
     wrapperWidget->setStyleSheet("QWidget { background-color: transparent; }");
@@ -101,6 +119,18 @@ void MainWindow::populateDriverList()
         driver.healthFlags = healthResult.flags;
     }
 
+    // Store all drivers for filtering
+    m_allDrivers = drivers;
+    
+    // Extract unique manufacturers for filter
+    std::set<std::wstring> manufacturers;
+    for (const auto& driver : drivers) {
+        if (!driver.manufacturer.empty() && driver.manufacturer != L"Unknown") {
+            manufacturers.insert(driver.manufacturer);
+        }
+    }
+    searchBar->setManufacturers(manufacturers);
+
     // Process categories
     auto rawCategories = CategoryGrouper::groupByCategory(drivers);
     auto processedCategories = CategoryProcessor::process(rawCategories);
@@ -121,4 +151,114 @@ void MainWindow::populateDriverList()
     
     // Add wrapper to main layout
     mainLayout->addWidget(wrapperWidget);
+    
+    // Store references for filtering
+    m_searchBar = searchBar;
+    m_contentLayout = contentLayout;
+    
+    // Connect search/filter signals
+    connect(searchBar, &SearchFilterBar::searchChanged, this, [this]() {
+        applyFilters();
+    });
+    
+    connect(searchBar, &SearchFilterBar::filtersChanged, this, [this]() {
+        applyFilters();
+    });
+}
+
+void MainWindow::applyFilters()
+{
+    if (!m_searchBar || !m_contentLayout) return;
+    
+    QString searchText = m_searchBar->getSearchText().toLower();
+    FilterPopupWidget::FilterState filters = m_searchBar->getFilterState();
+    
+    // Filter drivers
+    std::vector<DriverInfo> filtered;
+    
+    for (const auto& driver : m_allDrivers) {
+        // === Search filter ===
+        if (!searchText.isEmpty()) {
+            bool matches = false;
+            
+            // Search in: name, manufacturer, provider, device class
+            if (QString::fromStdWString(driver.name).toLower().contains(searchText)) matches = true;
+            if (QString::fromStdWString(driver.manufacturer).toLower().contains(searchText)) matches = true;
+            if (QString::fromStdWString(driver.provider).toLower().contains(searchText)) matches = true;
+            if (QString::fromStdWString(driver.deviceClassName).toLower().contains(searchText)) matches = true;
+            
+            if (!matches) continue;
+        }
+        
+        // === Health filter (OR within group) ===
+        // If ALL unchecked, show all (don't filter)
+        bool hasHealthFilter = filters.showCritical || filters.showWarnings || filters.showHealthy;
+        if (hasHealthFilter) {
+            bool healthMatch = false;
+            if (filters.showCritical && driver.healthScore < 70) healthMatch = true;
+            if (filters.showWarnings && driver.healthScore >= 70 && driver.healthScore < 90) healthMatch = true;
+            if (filters.showHealthy && driver.healthScore >= 90) healthMatch = true;
+            if (!healthMatch) continue;
+        }
+        
+        // === Importance filter (OR within group) ===
+        // If ALL unchecked, show all (don't filter)
+        bool hasImportanceFilter = filters.showCriticalDevices || filters.showImportantDevices || 
+                                    filters.showOptionalDevices || filters.showVirtualDevices;
+        if (hasImportanceFilter) {
+            bool importanceMatch = false;
+            if (filters.showCriticalDevices && driver.importanceLevel == DriverImportance::Critical) importanceMatch = true;
+            if (filters.showImportantDevices && driver.importanceLevel == DriverImportance::Important) importanceMatch = true;
+            if (filters.showOptionalDevices && driver.importanceLevel == DriverImportance::Optional) importanceMatch = true;
+            if (filters.showVirtualDevices && driver.importanceLevel == DriverImportance::Virtual) importanceMatch = true;
+            if (!importanceMatch) continue;
+        }
+        
+        // === Manufacturer filter (OR within group) ===
+        // If empty set, show all (don't filter)
+        if (!filters.selectedManufacturers.empty()) {
+            if (filters.selectedManufacturers.count(driver.manufacturer) == 0) {
+                continue;
+            }
+        }
+        
+        // All filters passed
+        filtered.push_back(driver);
+    }
+    
+    // Clear current sections
+    QLayoutItem* item;
+    while ((item = m_contentLayout->takeAt(0)) != nullptr) {
+        // Don't delete the stretch at the end
+        if (item->widget()) {
+            delete item->widget();
+        }
+        delete item;
+    }
+    
+    if (filtered.empty()) {
+        // Show "No results" message
+        QLabel* noResults = new QLabel("No drivers match your search/filter criteria");
+        noResults->setStyleSheet(
+            "QLabel {"
+            "   color: #888888;"
+            "   font-size: 14px;"
+            "   padding: 40px;"
+            "}"
+        );
+        noResults->setAlignment(Qt::AlignCenter);
+        m_contentLayout->addWidget(noResults);
+    } else {
+        // Process filtered categories
+        auto rawCategories = CategoryGrouper::groupByCategory(filtered);
+        auto processedCategories = CategoryProcessor::process(rawCategories);
+
+        // Create section widgets
+        for (const auto& category : processedCategories) {
+            CategorySectionWidget* section = new CategorySectionWidget(category);
+            m_contentLayout->addWidget(section);
+        }
+    }
+    
+    m_contentLayout->addStretch();
 }

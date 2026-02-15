@@ -27,11 +27,11 @@ void CategorySectionWidget::setupUi()
     QWidget* headerWidget = new QWidget();
     headerWidget->setAutoFillBackground(true);
     
-    // Match driver cards - 16px rounded corners (more rounded)
+    // Match driver cards - 16px rounded corners
     QString headerStyle = 
         "QWidget { "
         "   background-color: #2b2b2b; "
-        "   border-radius: 16px; "        // More rounded (was 12px)
+        "   border-radius: 16px; "        
         "   border: 1px solid #3d3d3d; "
         "}"
         "QWidget:hover { "
@@ -82,7 +82,7 @@ void CategorySectionWidget::setupUi()
     );
     headerLayout->addWidget(m_titleLabel);
 
-    // Status text - MORE VISIBLE (lighter gray), no background
+    // Status text
     QString statusText = getStatusText();
     QLabel* statusLabel = new QLabel(statusText);
     QFont statusFont = statusLabel->font();

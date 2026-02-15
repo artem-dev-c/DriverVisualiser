@@ -33,6 +33,10 @@ set(PROJECT_SOURCES
     src/ui/ErrorLogIndicatorWidget.cpp
     src/ui/ErrorLogPopupWidget.h
     src/ui/ErrorLogPopupWidget.cpp
+    src/ui/SearchFilterBar.h
+    src/ui/SearchFilterBar.cpp
+    src/ui/FilterPopupWidget.h
+    src/ui/FilterPopupWidget.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/scanner/SystemInfoCollector.h
