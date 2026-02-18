@@ -3,9 +3,12 @@
 #include <QHBoxLayout>
 #include <QMouseEvent>
 
-ErrorLogIndicatorWidget::ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry>& entries, QWidget* parent)
+ErrorLogIndicatorWidget::ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry>& entries,
+                                                     int logDays,
+                                                     QWidget* parent)
     : QFrame(parent)
     , m_entries(entries)
+    , m_logDays(logDays)
     , m_textLabel(nullptr)
     , m_arrowLabel(nullptr)
     , m_popup(nullptr)
@@ -62,12 +65,13 @@ void ErrorLogIndicatorWidget::updateAppearance()
         int warnings = countWarnings();
         
         QString text;
+        QString dayLabel = QString("(%1d)").arg(m_logDays);
         if (critical > 0) {
-            text = QString("%1 critical, %2 errors").arg(critical).arg(errors);
+            text = QString("%1 critical, %2 errors %3").arg(critical).arg(errors).arg(dayLabel);
         } else if (errors > 0) {
-            text = QString("%1 errors (7 days)").arg(errors);
+            text = QString("%1 errors %2").arg(errors).arg(dayLabel);
         } else {
-            text = QString("%1 warnings (7 days)").arg(warnings);
+            text = QString("%1 warnings %2").arg(warnings).arg(dayLabel);
         }
         
         m_textLabel->setText(text);
@@ -99,7 +103,7 @@ void ErrorLogIndicatorWidget::mousePressEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton) {
         // Create popup if not exists
         if (!m_popup) {
-            m_popup = new ErrorLogPopupWidget(m_entries, nullptr);
+            m_popup = new ErrorLogPopupWidget(m_entries, m_logDays, nullptr);
         }
         
         // Check if popup was just closed (prevent reopen on same click)

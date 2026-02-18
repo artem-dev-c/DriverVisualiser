@@ -18,7 +18,9 @@ class ErrorLogPopupWidget : public QFrame
     Q_OBJECT
 
 public:
-    explicit ErrorLogPopupWidget(const std::vector<ErrorLogEntry>& entries, QWidget* parent = nullptr);
+    explicit ErrorLogPopupWidget(const std::vector<ErrorLogEntry>& entries,
+                               int logDays = 7,
+                               QWidget* parent = nullptr);
     
     /// Show popup positioned relative to the anchor widget
     void showRelativeTo(QWidget* anchor);
@@ -47,5 +49,6 @@ private:
     static QString getSeverityColor(const std::wstring& level);
 
     std::vector<ErrorLogEntry> m_entries;
+    int m_logDays = 7;
     qint64 m_closeTime = 0;
 };

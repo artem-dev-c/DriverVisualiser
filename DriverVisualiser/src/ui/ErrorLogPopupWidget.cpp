@@ -6,9 +6,12 @@
 #include <QKeyEvent>
 #include <QFocusEvent>
 
-ErrorLogPopupWidget::ErrorLogPopupWidget(const std::vector<ErrorLogEntry>& entries, QWidget* parent)
+ErrorLogPopupWidget::ErrorLogPopupWidget(const std::vector<ErrorLogEntry>& entries,
+                                           int logDays,
+                                           QWidget* parent)
     : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint)
     , m_entries(entries)
+    , m_logDays(logDays)
 {
     setAttribute(Qt::WA_DeleteOnClose, false);
     setupUi();
@@ -56,7 +59,7 @@ void ErrorLogPopupWidget::setupUi()
     
     // === Header ===
     layout->addWidget(createSectionHeader(
-        QString("Error Log (Last 7 Days) [%1]").arg(m_entries.size())
+        QString("Error Log (Last %1 Days) [%2]").arg(m_logDays).arg(m_entries.size())
     ));
     
     layout->addSpacing(6);

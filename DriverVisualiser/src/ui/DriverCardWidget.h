@@ -15,10 +15,11 @@ class DriverCardWidget : public QFrame
     Q_OBJECT
 
 public:
-    explicit DriverCardWidget(const DriverInfo& driver, QWidget* parent = nullptr);
+    explicit DriverCardWidget(const DriverInfo& driver, int logDays = 7, QWidget* parent = nullptr);
 
 private:
     void setupUi(const DriverInfo& driver);
+    int m_logDays;
     
     /// Creates the importance indicator (3 squares)
     QWidget* createImportanceIndicator(DriverImportance importance);

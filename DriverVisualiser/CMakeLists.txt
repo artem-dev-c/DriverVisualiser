@@ -37,6 +37,12 @@ set(PROJECT_SOURCES
     src/ui/SearchFilterBar.cpp
     src/ui/FilterPopupWidget.h
     src/ui/FilterPopupWidget.cpp
+    src/ui/DashboardWidget.h
+    src/ui/DashboardWidget.cpp
+    src/ui/IssueListWidget.h
+    src/ui/IssueListWidget.cpp
+    src/ui/ScoreRingWidget.h
+    src/ui/ScoreRingWidget.cpp
     src/scanner/DriverScanner.cpp
     src/scanner/DriverScanner.h
     src/scanner/SystemInfoCollector.h
@@ -60,6 +66,8 @@ set(PROJECT_SOURCES
     src/scoring/DriverImportanceEvaluator.h
     src/scoring/HealthScoreEvaluator.cpp
     src/scoring/HealthScoreEvaluator.h
+    src/scoring/SystemHealthSummary.cpp
+    src/scoring/SystemHealthSummary.h
     src/grouper/CategoryGrouper.cpp
     src/grouper/CategoryGrouper.h
     src/grouper/CategoryProcessor.cpp

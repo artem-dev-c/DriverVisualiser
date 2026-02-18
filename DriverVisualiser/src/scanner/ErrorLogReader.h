@@ -11,14 +11,16 @@
  * @class ErrorLogReader
  * @brief Queries Windows Event Log for driver-related events.
  *
- * Retrieves error/warning events from the System log for the last 7 days
- * from driver-related providers (Kernel-PnP, DriverFrameworks).
+ * Retrieves error/warning events from the System log for a configurable
+ * number of days (default: 7) from driver-related providers
+ * (Kernel-PnP, DriverFrameworks-UserMode).
  * Matches events to specific drivers using Instance ID.
  */
 class ErrorLogReader {
 public:
-    /// Query System log for all driver-related events (last 7 days)
-    static std::vector<ErrorLogEntry> querySystemLog();
+    /// Query System log for all driver-related events
+    /// @param days  Lookback window in days (7, 30, or 90). Default: 7.
+    static std::vector<ErrorLogEntry> querySystemLog(int days = 7);
     
     /// Match events to specific driver by Instance ID (exact match only)
     static std::vector<ErrorLogEntry> filterForDriver(
@@ -27,7 +29,8 @@ public:
     );
     
     /// Populate errorLog field for all drivers
-    static void populateErrorLogs(std::vector<DriverInfo>& drivers);
+    /// @param days  Lookback window in days passed through to querySystemLog.
+    static void populateErrorLogs(std::vector<DriverInfo>& drivers, int days = 7);
     
     /// Extract EventData field from XML (used by event message builder)
     static std::optional<std::wstring> extractEventDataField(

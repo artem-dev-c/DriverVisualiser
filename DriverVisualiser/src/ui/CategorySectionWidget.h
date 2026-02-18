@@ -17,6 +17,7 @@ class CategorySectionWidget : public QWidget
 
 public:
     explicit CategorySectionWidget(const ProcessedCategory& category,
+                                   int logDays = 7,
                                    QWidget* parent = nullptr);
     
     void setExpanded(bool expanded);
@@ -40,5 +41,6 @@ private:
     QWidget* m_contentWidget;
     QVBoxLayout* m_contentLayout;
     bool m_expanded;
-    ProcessedCategory m_category;  // Holds pre-processed data
+    ProcessedCategory m_category;
+    int m_logDays = 7;
 };

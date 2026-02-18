@@ -19,7 +19,9 @@ class ErrorLogIndicatorWidget : public QFrame
     Q_OBJECT
 
 public:
-    explicit ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry>& entries, QWidget* parent = nullptr);
+    explicit ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry>& entries,
+                                     int logDays = 7,
+                                     QWidget* parent = nullptr);
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -38,6 +40,7 @@ private:
     int countCritical() const;
 
     std::vector<ErrorLogEntry> m_entries;
+    int m_logDays;
     QLabel* m_textLabel;
     QLabel* m_arrowLabel;
     ErrorLogPopupWidget* m_popup;

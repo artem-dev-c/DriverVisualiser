@@ -14,8 +14,9 @@
 #include <QPalette>
 #include <QProgressBar>
 
-DriverCardWidget::DriverCardWidget(const DriverInfo& driver, QWidget* parent)
+DriverCardWidget::DriverCardWidget(const DriverInfo& driver, int logDays, QWidget* parent)
     : QFrame(parent)
+    , m_logDays(logDays)
     , m_infoPopup(nullptr)
     , m_driver(driver)
 {
@@ -163,7 +164,7 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     contentLayout->addLayout(detailsLayout, 1);
 
     // Middle: Error log indicator
-    m_errorLogIndicator = new ErrorLogIndicatorWidget(driver.errorLog);
+    m_errorLogIndicator = new ErrorLogIndicatorWidget(driver.errorLog, m_logDays);
     contentLayout->addWidget(m_errorLogIndicator);
 
     // Right side: Flag indicator (spans both rows visually)

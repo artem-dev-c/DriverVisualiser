@@ -3,10 +3,12 @@
 #include <QHBoxLayout>
 
 CategorySectionWidget::CategorySectionWidget(const ProcessedCategory& category,
+                                             int logDays,
                                              QWidget* parent)
     : QWidget(parent)
     , m_expanded(false)
     , m_category(category)
+    , m_logDays(logDays)
 {
     setupUi();
     populateDrivers();
@@ -169,7 +171,7 @@ void CategorySectionWidget::populateDrivers()
 {
     // Drivers are already sorted by CategoryProcessor
     for (const auto& driver : m_category.sortedDrivers) {
-        DriverCardWidget* card = new DriverCardWidget(driver);
+        DriverCardWidget* card = new DriverCardWidget(driver, m_logDays);
         m_contentLayout->addWidget(card);
     }
 }
