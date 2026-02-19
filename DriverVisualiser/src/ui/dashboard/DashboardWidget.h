@@ -40,6 +40,12 @@ public:
     /// Returns the currently selected log window in days (7, 30, or 90)
     int selectedLogDays() const;
 
+    /// Restore the log window selection (called before populate() on rescan)
+    void setSelectedLogDays(int days);
+
+    /// Enable/disable the scan button (disabled while scanning)
+    void setScanButtonEnabled(bool enabled);
+
 signals:
     /// Emitted when user clicks the Rescan button
     void scanRequested();

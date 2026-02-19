@@ -15,10 +15,10 @@ IssueListWidget::IssueListWidget(QWidget* parent)
     // === Section header ===
     QLabel* header = new QLabel("Detected Issues");
     QFont headerFont = header->font();
-    headerFont.setPointSize(10);
+    headerFont.setPointSize(13);
     headerFont.setBold(true);
     header->setFont(headerFont);
-    header->setStyleSheet("color: #cccccc; padding-bottom: 6px;");
+    header->setStyleSheet("color: #cccccc; padding-bottom: 10px;");
     outerLayout->addWidget(header);
 
     // === Scroll area ===
@@ -27,7 +27,7 @@ IssueListWidget::IssueListWidget(QWidget* parent)
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_scrollArea->setMaximumHeight(160);  // Compact - shows ~4 issues before scrolling
+    m_scrollArea->setMaximumHeight(240);  // Shows ~4 issues before scrolling
     m_scrollArea->setStyleSheet(
         "QScrollArea { background: transparent; border: none; }"
         "QScrollArea > QWidget > QWidget { background: transparent; }"
@@ -51,7 +51,7 @@ IssueListWidget::IssueListWidget(QWidget* parent)
 
     m_listLayout = new QVBoxLayout(m_listContainer);
     m_listLayout->setContentsMargins(0, 0, 4, 0);
-    m_listLayout->setSpacing(3);
+    m_listLayout->setSpacing(5);
 
     m_scrollArea->setWidget(m_listContainer);
     outerLayout->addWidget(m_scrollArea);
@@ -98,28 +98,28 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     );
 
     QHBoxLayout* layout = new QHBoxLayout(row);
-    layout->setContentsMargins(8, 5, 8, 5);
-    layout->setSpacing(10);
+    layout->setContentsMargins(10, 9, 10, 9);
+    layout->setSpacing(14);
 
     // === Severity dot ===
     QLabel* dot = new QLabel("●");
     dot->setFixedWidth(12);
 
     if (issue.isUserDisabled) {
-        dot->setStyleSheet("color: #666666; font-size: 10px; background: transparent;");
+        dot->setStyleSheet("color: #666666; font-size: 13px; background: transparent;");
     } else {
         QString color = severityColor(issue.severity);
-        dot->setStyleSheet(QString("color: %1; font-size: 10px; background: transparent;").arg(color));
+        dot->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;").arg(color));
     }
     layout->addWidget(dot);
 
     // === Driver name ===
     QString displayName = QString::fromStdWString(issue.driverName);
     QLabel* nameLabel = new QLabel(displayName);
-    nameLabel->setFixedWidth(160);
+    nameLabel->setFixedWidth(220);
 
     QFont nameFont = nameLabel->font();
-    nameFont.setPointSize(9);
+    nameFont.setPointSize(11);
     nameFont.setBold(!issue.isUserDisabled);
     nameLabel->setFont(nameFont);
 
@@ -137,7 +137,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     QLabel* descLabel = new QLabel(descText);
 
     QFont descFont = descLabel->font();
-    descFont.setPointSize(9);
+    descFont.setPointSize(11);
     descLabel->setFont(descFont);
 
     if (issue.isUserDisabled) {
@@ -155,7 +155,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
         QLabel* badge = new QLabel(catText);
 
         QFont badgeFont = badge->font();
-        badgeFont.setPointSize(8);
+        badgeFont.setPointSize(10);
         badge->setFont(badgeFont);
 
         if (issue.isUserDisabled) {
@@ -189,12 +189,12 @@ QWidget* IssueListWidget::createNoIssuesRow()
 {
     QLabel* label = new QLabel("✓  No critical issues detected");
     QFont font = label->font();
-    font.setPointSize(9);
+    font.setPointSize(11);
     label->setFont(font);
     label->setStyleSheet(
         "QLabel {"
         "   color: #27ae60;"
-        "   padding: 6px 4px;"
+        "   padding: 10px 4px;"
         "   background: transparent;"
         "}"
     );

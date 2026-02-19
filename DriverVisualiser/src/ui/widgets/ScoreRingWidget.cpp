@@ -23,7 +23,7 @@ void ScoreRingWidget::setScore(int score)
 
 QSize ScoreRingWidget::sizeHint() const
 {
-    return QSize(120, 120);
+    return QSize(180, 180);
 }
 
 void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
@@ -35,7 +35,7 @@ void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
     const int h = height();
 
     // Ring geometry
-    const int ringThickness = 10;
+    const int ringThickness = 14;
     const int margin = ringThickness / 2 + 2;
     QRectF ringRect(margin, margin, w - margin * 2, h - margin * 2);
 
@@ -59,24 +59,24 @@ void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
 
     // === Center score number ===
     QFont scoreFont = painter.font();
-    scoreFont.setPointSize(22);
+    scoreFont.setPointSize(32);
     scoreFont.setBold(true);
     painter.setFont(scoreFont);
     painter.setPen(QColor("#ffffff"));
 
     // Draw score percentage centered
     QString scoreText = QString::number(m_score) + "%";
-    QRectF centerRect(0, 0, w, h - 10);  // Slightly above center to leave room for label
+    QRectF centerRect(0, 0, w, h - 16);  // Slightly above center to leave room for label
     painter.drawText(centerRect, Qt::AlignCenter, scoreText);
 
     // === Center sub-label ("Health") ===
     QFont labelFont = painter.font();
-    labelFont.setPointSize(8);
+    labelFont.setPointSize(11);
     labelFont.setBold(false);
     painter.setFont(labelFont);
     painter.setPen(QColor("#888888"));
 
-    QRectF labelRect(0, h / 2 + 10, w, h / 2);
+    QRectF labelRect(0, h / 2 + 14, w, h / 2);
     painter.drawText(labelRect, Qt::AlignHCenter | Qt::AlignTop, "Health");
 }
 

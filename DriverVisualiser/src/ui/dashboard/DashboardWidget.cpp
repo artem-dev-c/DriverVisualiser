@@ -71,7 +71,7 @@ QWidget* DashboardWidget::buildScoreColumn()
 {
     QWidget* col = new QWidget();
     col->setStyleSheet("background: transparent;");
-    col->setFixedWidth(140);
+    col->setFixedWidth(190);
 
     QVBoxLayout* layout = new QVBoxLayout(col);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -141,9 +141,9 @@ QWidget* DashboardWidget::buildControlColumn()
     auto makeSysLabel = [](const QString& text) -> QLabel* {
         QLabel* label = new QLabel(text);
         QFont f = label->font();
-        f.setPointSize(9);
+        f.setPointSize(10);
         label->setFont(f);
-        label->setStyleSheet("color: #aaaaaa; background: transparent;");
+        label->setStyleSheet("color: #bbbbbb; background: transparent;");
         label->setWordWrap(true);
         return label;
     };
@@ -357,4 +357,22 @@ void DashboardWidget::updateLogWindowButtons()
 int DashboardWidget::selectedLogDays() const
 {
     return m_selectedLogDays;
+}
+
+// ============================================================================
+// Public Accessors (added for async scan support)
+// ============================================================================
+
+void DashboardWidget::setSelectedLogDays(int days)
+{
+    m_selectedLogDays = days;
+    updateLogWindowButtons();
+}
+
+void DashboardWidget::setScanButtonEnabled(bool enabled)
+{
+    if (m_rescanButton) {
+        m_rescanButton->setEnabled(enabled);
+        m_rescanButton->setText(enabled ? "⟳  Scan Drivers" : "⟳  Scanning...");
+    }
 }

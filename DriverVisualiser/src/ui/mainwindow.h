@@ -2,14 +2,16 @@
 
 #include <QMainWindow>
 #include <QVBoxLayout>
+#include <QLabel>
+#include <QProgressBar>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 #include <vector>
 #include "DriverInfo.h"
 #include "SystemInfo.h"
 
 QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
+namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class CategorySectionWidget;
@@ -25,23 +27,34 @@ public:
     ~MainWindow();
 
 private:
-    Ui::MainWindow *ui;
-
     void populateDriverList();
     void clearDriverList();
     void applyFilters();
 
-    /// Run a full scan (drivers + event log) and refresh the entire UI
-    /// @param logDays  Event log lookback window in days (7, 30, or 90)
-    void runScan(int logDays);
+    /// Show/hide the loading overlay
+    void showLoadingState(bool loading);
+
+    /// Called on background thread — returns scanned drivers
+    std::vector<DriverInfo> performScan(int logDays);
+
+    /// Called on main thread when scan completes
+    void onScanComplete();
+
+    Ui::MainWindow *ui;
 
     // --- Widgets ---
-    DashboardWidget* m_dashboard    = nullptr;
-    SearchFilterBar* m_searchBar    = nullptr;
+    DashboardWidget* m_dashboard     = nullptr;
+    SearchFilterBar* m_searchBar     = nullptr;
     QVBoxLayout*     m_contentLayout = nullptr;
+    QWidget*         m_loadingWidget = nullptr;
+    QLabel*          m_loadingLabel  = nullptr;
+
+    // --- Async scan ---
+    QFutureWatcher<std::vector<DriverInfo>>* m_scanWatcher = nullptr;
+    bool m_scanning = false;
 
     // --- Data ---
     std::vector<DriverInfo> m_allDrivers;
     SystemInfo              m_systemInfo;
-    int                     m_selectedLogDays = 7;  ///< Persisted log window (survives rescan)
+    int                     m_selectedLogDays = 7;
 };

@@ -103,6 +103,9 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     OutputDebugStringW((L"[ErrorLogReader] Events within " + std::to_wstring(days) +
                         L"-day window: " + std::to_wstring(entries.size()) + L"\n").c_str());
 
+    // Reverse so entries are newest-first (EvtQuery returns oldest-first)
+    std::reverse(entries.begin(), entries.end());
+
     EvtClose(hResults);
     return entries;
 }
