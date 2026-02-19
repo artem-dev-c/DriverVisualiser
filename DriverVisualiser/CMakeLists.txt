@@ -15,63 +15,80 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_library(SETUP_LIB setupapi)
 
 set(PROJECT_SOURCES
+    # Main
     src/main.cpp
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.ui
-    src/ui/DriverCardWidget.h
-    src/ui/DriverCardWidget.cpp
-    src/ui/CategorySectionWidget.h
-    src/ui/CategorySectionWidget.cpp
-    src/ui/FlagIndicatorWidget.h
-    src/ui/FlagIndicatorWidget.cpp
-    src/ui/FlagPopupWidget.h
-    src/ui/FlagPopupWidget.cpp
-    src/ui/DriverInfoPopup.h
-    src/ui/DriverInfoPopup.cpp
-    src/ui/ErrorLogIndicatorWidget.h
-    src/ui/ErrorLogIndicatorWidget.cpp
-    src/ui/ErrorLogPopupWidget.h
-    src/ui/ErrorLogPopupWidget.cpp
-    src/ui/SearchFilterBar.h
-    src/ui/SearchFilterBar.cpp
-    src/ui/FilterPopupWidget.h
-    src/ui/FilterPopupWidget.cpp
-    src/ui/DashboardWidget.h
-    src/ui/DashboardWidget.cpp
-    src/ui/IssueListWidget.h
-    src/ui/IssueListWidget.cpp
-    src/ui/ScoreRingWidget.h
-    src/ui/ScoreRingWidget.cpp
-    src/scanner/DriverScanner.cpp
-    src/scanner/DriverScanner.h
-    src/scanner/SystemInfoCollector.h
-    src/scanner/SystemInfoCollector.cpp
-    src/scanner/ErrorLogReader.h
-    src/scanner/ErrorLogReader.cpp
-    src/models/DriverInfo.h
-    src/models/DeviceCategory.h
-    src/models/HealthFlag.h
-    src/models/SystemInfo.h
-    src/models/ErrorLogEntry.h
-    src/formatter/DriverDateFormatter.cpp
-    src/formatter/DriverDateFormatter.h
-    src/formatter/DriverStatusFormatter.cpp
-    src/formatter/DriverStatusFormatter.h
-    src/formatter/DriverVersionFormatter.cpp
-    src/formatter/DriverVersionFormatter.h
-    src/formatter/DriverImportanceFormatter.cpp
-    src/formatter/DriverImportanceFormatter.h
-    src/scoring/DriverImportanceEvaluator.cpp
-    src/scoring/DriverImportanceEvaluator.h
-    src/scoring/HealthScoreEvaluator.cpp
-    src/scoring/HealthScoreEvaluator.h
-    src/scoring/SystemHealthSummary.cpp
-    src/scoring/SystemHealthSummary.h
-    src/grouper/CategoryGrouper.cpp
-    src/grouper/CategoryGrouper.h
-    src/grouper/CategoryProcessor.cpp
-    src/grouper/CategoryProcessor.h
+
+    # Core - Scanner
+    src/core/scanner/DriverScanner.cpp
+    src/core/scanner/DriverScanner.h
+    src/core/scanner/ErrorLogReader.cpp
+    src/core/scanner/ErrorLogReader.h
+    src/core/scanner/SystemInfoCollector.cpp
+    src/core/scanner/SystemInfoCollector.h
+
+    # Core - Models
+    src/core/models/DeviceCategory.h
+    src/core/models/DriverInfo.h
+    src/core/models/ErrorLogEntry.h
+    src/core/models/HealthFlag.h
+    src/core/models/SystemInfo.h
+
+    # Core - Scoring
+    src/core/scoring/DriverImportanceEvaluator.cpp
+    src/core/scoring/DriverImportanceEvaluator.h
+    src/core/scoring/HealthScoreEvaluator.cpp
+    src/core/scoring/HealthScoreEvaluator.h
+    src/core/scoring/SystemHealthSummary.cpp
+    src/core/scoring/SystemHealthSummary.h
+
+    # Utils - Formatters
+    src/utils/formatters/DriverDateFormatter.cpp
+    src/utils/formatters/DriverDateFormatter.h
+    src/utils/formatters/DriverImportanceFormatter.cpp
+    src/utils/formatters/DriverImportanceFormatter.h
+    src/utils/formatters/DriverStatusFormatter.cpp
+    src/utils/formatters/DriverStatusFormatter.h
+    src/utils/formatters/DriverVersionFormatter.cpp
+    src/utils/formatters/DriverVersionFormatter.h
+
+    # Utils - Grouper
+    src/utils/grouper/CategoryGrouper.cpp
+    src/utils/grouper/CategoryGrouper.h
+    src/utils/grouper/CategoryProcessor.cpp
+    src/utils/grouper/CategoryProcessor.h
+
+    # UI - Widgets
+    src/ui/widgets/CategorySectionWidget.cpp
+    src/ui/widgets/CategorySectionWidget.h
+    src/ui/widgets/DriverCardWidget.cpp
+    src/ui/widgets/DriverCardWidget.h
+    src/ui/widgets/ErrorLogIndicatorWidget.cpp
+    src/ui/widgets/ErrorLogIndicatorWidget.h
+    src/ui/widgets/FlagIndicatorWidget.cpp
+    src/ui/widgets/FlagIndicatorWidget.h
+    src/ui/widgets/IssueListWidget.cpp
+    src/ui/widgets/IssueListWidget.h
+    src/ui/widgets/ScoreRingWidget.cpp
+    src/ui/widgets/ScoreRingWidget.h
+    src/ui/widgets/SearchFilterBar.cpp
+    src/ui/widgets/SearchFilterBar.h
+
+    # UI - Popups
+    src/ui/popups/DriverInfoPopup.cpp
+    src/ui/popups/DriverInfoPopup.h
+    src/ui/popups/ErrorLogPopupWidget.cpp
+    src/ui/popups/ErrorLogPopupWidget.h
+    src/ui/popups/FilterPopupWidget.cpp
+    src/ui/popups/FilterPopupWidget.h
+    src/ui/popups/FlagPopupWidget.cpp
+    src/ui/popups/FlagPopupWidget.h
+
+    # UI - Dashboard
+    src/ui/dashboard/DashboardWidget.cpp
+    src/ui/dashboard/DashboardWidget.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -88,12 +105,16 @@ else()
 endif()
 
 target_include_directories(DriverVisualiser PRIVATE
-    src/formatter
-    src/grouper
-    src/models
-    src/scanner
-    src/scoring
+    src
+    src/core/models
+    src/core/scanner
+    src/core/scoring
+    src/utils/formatters
+    src/utils/grouper
     src/ui
+    src/ui/widgets
+    src/ui/popups
+    src/ui/dashboard
 )
 
 target_link_libraries(DriverVisualiser
