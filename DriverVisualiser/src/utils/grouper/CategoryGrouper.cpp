@@ -1,4 +1,5 @@
 #include "CategoryGrouper.h"
+#include "ClassNameMapper.h"
 
 std::map<std::wstring, DeviceCategory> 
 CategoryGrouper::groupByCategory(const std::vector<DriverInfo>& drivers)
@@ -15,8 +16,8 @@ CategoryGrouper::groupByCategory(const std::vector<DriverInfo>& drivers)
         auto& category = categories[className];
         
         if (category.drivers.empty()) {
-            category.className = className;
-            category.displayName = className;
+            category.className   = className;                                    // Raw: always preserved
+            category.displayName = ClassNameMapper::getDisplayName(className);   // Mapped: presentation only
         }
         
         category.drivers.push_back(driver);

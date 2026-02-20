@@ -10,6 +10,7 @@
 #include "CategorySectionWidget.h"
 #include "DashboardWidget.h"
 #include "SearchFilterBar.h"
+#include "ClassNameMapper.h"
 
 #include <QScreen>
 #include <QGuiApplication>
@@ -46,6 +47,16 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onScanComplete);
 
     m_systemInfo = SystemInfoCollector::collect();
+
+    // Initialize class name mapper from JSON (must happen before first scan)
+    // Non-fatal: falls back to raw class names if file is missing
+    {
+        wchar_t exePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        std::wstring dir(exePath);
+        dir = dir.substr(0, dir.rfind(L'\\'));
+        ClassNameMapper::initialize(dir + L"\\device_class_mappings.json");
+    }
 
     // Show loading UI immediately, kick off async scan
     showLoadingState(true);

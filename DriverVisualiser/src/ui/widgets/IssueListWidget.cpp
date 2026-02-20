@@ -1,4 +1,5 @@
 #include "IssueListWidget.h"
+#include "ClassNameMapper.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -151,7 +152,9 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
 
     // === Category badge ===
     if (!issue.categoryName.empty()) {
-        QString catText = QString::fromStdWString(issue.categoryName);
+        QString catText = QString::fromStdWString(
+            ClassNameMapper::getDisplayName(issue.categoryName)
+        );
         QLabel* badge = new QLabel(catText);
 
         QFont badgeFont = badge->font();

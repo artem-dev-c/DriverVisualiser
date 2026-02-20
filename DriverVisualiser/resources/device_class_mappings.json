@@ -1,0 +1,125 @@
+{
+  "_metadata": {
+    "description": "Windows Device Manager internal class name mappings",
+    "source": "Windows Registry HKLM\\SYSTEM\\CurrentControlSet\\Control\\Class",
+    "note": "Maps raw internal Windows class identifiers to clean, human-readable display names",
+    "version": "1.0.0"
+  },
+  "deviceClasses": {
+
+    "1394": "IEEE 1394 Bus Controllers",
+    "61883": "61883 Protocol Devices",
+
+    "AVC": "AVC Protocol Devices",
+
+    "Battery": "Battery",
+    "Biometric": "Biometric Devices",
+    "Bluetooth": "Bluetooth",
+    "BluetootheLE": "Bluetooth Low Energy",
+
+    "Camera": "Camera",
+    "CDROM": "CD & DVD Drives",
+    "Computer": "Computer",
+
+    "DiskDrive": "Disk Drives",
+    "Display": "Display Adapters",
+    "Dot4": "DOT4 Protocol Devices",
+    "Dot4Print": "DOT4 Print Devices",
+
+    "EhStorClas": "Encrypted Drive Controllers",
+    "Enum1394": "IEEE 1394 Enumerated Devices",
+    "Extension": "Device Extension INFs",
+
+    "Firmware": "Firmware",
+    "FloppyDisk": "Floppy Disk Controllers",
+    "FsFilter-Activity": "File System Activity Monitors",
+    "FsFilter-AntiVirus": "Anti-Virus File System Filters",
+    "FsFilter-Bottom": "File System Bottom Filters",
+    "FsFilter-CfgMgr": "File System Configuration Manager Filters",
+    "FsFilter-Compression": "File System Compression Filters",
+    "FsFilter-ContentScreener": "File System Content Screeners",
+    "FsFilter-ContinuousBackup": "Continuous Backup File System Filters",
+    "FsFilter-CopyProtection": "File System Copy Protection Filters",
+    "FsFilter-Encryption": "File System Encryption Filters",
+    "FsFilter-HSM": "Hierarchical Storage Management Filters",
+    "FsFilter-Infrastructure": "File System Infrastructure Filters",
+    "FsFilter-OpenFileBackup": "Open File Backup Filters",
+    "FsFilter-PhysicalQuotaManagement": "Physical Quota Management Filters",
+    "FsFilter-QuotaManagement": "Quota Management Filters",
+    "FsFilter-Replication": "File System Replication Filters",
+    "FsFilter-SecurityEnhancer": "File System Security Enhancers",
+    "FsFilter-System": "System File System Filters",
+    "FsFilter-Top": "File System Top Filters",
+    "FsFilter-Undelete": "File System Undelete Filters",
+    "FsFilter-VirtualDisk": "Virtual Disk File System Filters",
+
+    "GPS": "GPS Receivers",
+
+    "HDC": "IDE & ATAPI Controllers",
+    "HIDClass": "Human Interface Devices",
+
+    "Image": "Imaging Devices",
+    "Infrared": "Infrared Devices",
+
+    "Keyboard": "Keyboards",
+
+    "LegacyDriver": "Legacy Drivers",
+    "LPTENUM": "Parallel Port Enumerated Devices",
+
+    "Media": "Audio & Media Devices",
+    "MEDIA": "Audio & Media Devices",
+    "MemoryTechnology": "Memory Technology Devices",
+    "MediumChanger": "Medium Changers",
+    "Modem": "Modems",
+    "Monitor": "Monitors",
+    "Mouse": "Mice & Pointing Devices",
+    "MTD": "Memory Technology Drivers",
+    "Multifunction": "Multifunction Devices",
+    "MultiPortSerial": "Multi-Port Serial Adapters",
+
+    "Net": "Network Adapters",
+    "NetClient": "Network Clients",
+    "NetService": "Network Services",
+    "NetTrans": "Network Protocols",
+    "NoDriver": "Devices Without Drivers",
+
+    "PCIEBusConnector": "PCIe Bus Connectors",
+    "PCMCIA": "PCMCIA Adapters",
+    "Ports": "Ports (COM & LPT)",
+    "PrintQueue": "Print Queues",
+    "Printer": "Printers",
+    "PnpPrinters": "PnP Printers",
+    "Processor": "Processors",
+    "Proximity": "Proximity Devices",
+
+    "SBP2": "SBP2 IEEE 1394 Devices",
+    "SCSIAdapter": "Storage Controllers",
+    "SecurityDevices": "Security Devices",
+    "Sensor": "Sensors",
+    "SmartCardReader": "Smart Card Readers",
+    "SmartCard": "Smart Card Devices",
+    "SoftwareComponent": "Software Components",
+    "SoftwareDevice": "Software Devices",
+    "Sound": "Sound Controllers",
+    "System": "System Devices",
+
+    "TapeDrive": "Tape Drives",
+
+    "UCM": "USB Connector Managers",
+    "Unknown": "Unknown Devices",
+    "USB": "Universal Serial Bus Controllers",
+    "USBDevice": "USB Devices",
+    "USBPRINT": "USB Print Devices",
+
+    "Volume": "Storage Volumes",
+    "VolumeSnapshot": "Volume Shadow Copies",
+
+    "WCEUSBSHClass": "Windows CE USB Devices",
+    "WindowsCE": "Windows CE Devices",
+    "WPD": "Portable Devices",
+    "WPDBUSENUM": "Portable Device Bus Enumerators",
+
+    "AudioEndpoint": "Audio Endpoints",
+    "AudioProcessingObject": "Audio Processing Objects"
+  }
+}

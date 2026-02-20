@@ -60,6 +60,10 @@ set(PROJECT_SOURCES
     src/utils/grouper/CategoryProcessor.cpp
     src/utils/grouper/CategoryProcessor.h
 
+    # Utils - Mappers
+    src/utils/mappers/ClassNameMapper.cpp
+    src/utils/mappers/ClassNameMapper.h
+
     # UI - Widgets
     src/ui/widgets/CategorySectionWidget.cpp
     src/ui/widgets/CategorySectionWidget.h
@@ -111,6 +115,7 @@ target_include_directories(DriverVisualiser PRIVATE
     src/core/scoring
     src/utils/formatters
     src/utils/grouper
+    src/utils/mappers
     src/ui
     src/ui/widgets
     src/ui/popups
@@ -149,3 +154,10 @@ install(TARGETS DriverVisualiser
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(DriverVisualiser)
 endif()
+
+add_custom_command(TARGET DriverVisualiser POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/resources/device_class_mappings.json
+        $<TARGET_FILE_DIR:DriverVisualiser>/device_class_mappings.json
+    COMMENT "Copying device_class_mappings.json to output directory"
+)
