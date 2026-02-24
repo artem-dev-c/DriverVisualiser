@@ -54,6 +54,9 @@ signals:
     /// NOTE: Changes take effect on next rescan - not applied immediately
     void logWindowChanged(int days);
 
+    /// Emitted when user clicks the Generate Report button
+    void reportRequested();
+
 private:
     void setupUi();
 
@@ -90,6 +93,7 @@ private:
     QLabel*      m_archLabel      = nullptr;
     QLabel*      m_lastScanLabel  = nullptr;
     QPushButton* m_rescanButton   = nullptr;
+    QPushButton* m_reportButton   = nullptr;
 
     // Log window toggle buttons (7 / 30 / 90)
     QPushButton* m_log7Button  = nullptr;

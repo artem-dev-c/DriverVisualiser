@@ -40,6 +40,9 @@ private:
     /// Called on main thread when scan completes
     void onScanComplete();
 
+    /// Called when user clicks Generate Report button
+    void onGenerateReportRequested();
+
     Ui::MainWindow *ui;
 
     // --- Widgets ---

@@ -11,6 +11,8 @@
 #include "DashboardWidget.h"
 #include "SearchFilterBar.h"
 #include "ClassNameMapper.h"
+#include "ReportGenerator.h"
+#include "ReportNotification.h"
 
 #include <QScreen>
 #include <QGuiApplication>
@@ -19,6 +21,11 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QTimer>
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
+#include <QStandardPaths>
+#include <QMessageBox>
 #include <algorithm>
 
 // ============================================================================
@@ -281,6 +288,8 @@ void MainWindow::populateDriverList()
         m_selectedLogDays = days;
     });
 
+    connect(m_dashboard, &DashboardWidget::reportRequested, this, &MainWindow::onGenerateReportRequested);
+
     // =========================================================================
     // Search / Filter Bar
     // =========================================================================
@@ -441,4 +450,78 @@ void MainWindow::applyFilters()
         scrollArea->setUpdatesEnabled(true);
         scrollArea->update();
     }
+}
+
+// ============================================================================
+// Report Generation
+// ============================================================================
+
+void MainWindow::onGenerateReportRequested()
+{
+    // Don't allow report generation during scan
+    if (m_scanning) {
+        QMessageBox::information(
+            this,
+            "Report Generation",
+            "Please wait for the current scan to complete before generating a report."
+        );
+        return;
+    }
+
+    // Make sure we have driver data
+    if (m_allDrivers.empty()) {
+        QMessageBox::information(
+            this,
+            "Report Generation",
+            "No driver data available. Please scan drivers first."
+        );
+        return;
+    }
+
+    // 1. Create report directory if it doesn't exist
+    QString documentsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QString reportDir = documentsPath + "/DriverVisualiser/Reports";
+    
+    QDir dir;
+    if (!dir.mkpath(reportDir)) {
+        QMessageBox::critical(
+            this,
+            "Report Generation Failed",
+            "Could not create report directory:\n" + reportDir
+        );
+        return;
+    }
+
+    // 2. Generate filename with timestamp
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString fileName = QString("SystemReport_%1.txt").arg(timestamp);
+    QString filePath = reportDir + "/" + fileName;
+
+    // 3. Generate report content
+    ReportGenerator generator;
+    QString reportText = generator.generateTextReport(
+        m_allDrivers,
+        m_systemInfo,
+        m_selectedLogDays
+    );
+
+    // 4. Save to file
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(
+            this,
+            "Report Generation Failed",
+            "Could not write report file:\n" + filePath + "\n\nError: " + file.errorString()
+        );
+        return;
+    }
+
+    QTextStream out(&file);
+    // Qt6 uses UTF-8 by default, no need to set codec
+    out << reportText;
+    file.close();
+
+    // 5. Show success notification with actions
+    ReportNotification* notification = new ReportNotification(filePath, reportText, this);
+    notification->show(3500);  // Show for 3.5 seconds
 }

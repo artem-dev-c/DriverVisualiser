@@ -86,7 +86,7 @@ QWidget* DashboardWidget::buildScoreColumn()
     auto makeCountLabel = [](const QString& text, const QString& color) -> QLabel* {
         QLabel* label = new QLabel(text);
         QFont f = label->font();
-        f.setPointSize(8);
+        f.setPointSize(10);
         label->setFont(f);
         label->setAlignment(Qt::AlignCenter);
         label->setStyleSheet(QString(
@@ -246,6 +246,34 @@ QWidget* DashboardWidget::buildControlColumn()
     m_rescanButton->setCursor(Qt::PointingHandCursor);
     connect(m_rescanButton, &QPushButton::clicked, this, &DashboardWidget::scanRequested);
     layout->addWidget(m_rescanButton);
+
+    layout->addSpacing(6);
+
+    // === Generate Report button ===
+    m_reportButton = new QPushButton("📄  Generate Report");
+    m_reportButton->setFixedHeight(32);
+    m_reportButton->setStyleSheet(
+        "QPushButton {"
+        "   background-color: #2d4356;"
+        "   color: #5dade2;"
+        "   border: 1px solid #3d5a6e;"
+        "   border-radius: 6px;"
+        "   padding: 6px 12px;"
+        "   font-size: 11px;"
+        "   font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "   background-color: #3a5670;"
+        "   border-color: #5dade2;"
+        "   color: #ffffff;"
+        "}"
+        "QPushButton:pressed {"
+        "   background-color: #1e2d3a;"
+        "}"
+    );
+    m_reportButton->setCursor(Qt::PointingHandCursor);
+    connect(m_reportButton, &QPushButton::clicked, this, &DashboardWidget::reportRequested);
+    layout->addWidget(m_reportButton);
 
     layout->addStretch();
 

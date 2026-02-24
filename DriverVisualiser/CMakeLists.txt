@@ -44,6 +44,13 @@ set(PROJECT_SOURCES
     src/core/scoring/SystemHealthSummary.cpp
     src/core/scoring/SystemHealthSummary.h
 
+    # Core - Reporting
+    src/core/reporting/ReportGenerator.cpp
+    src/core/reporting/ReportGenerator.h
+    src/core/reporting/formatters/IReportFormatter.h
+    src/core/reporting/formatters/TextReportFormatter.cpp
+    src/core/reporting/formatters/TextReportFormatter.h
+
     # Utils - Formatters
     src/utils/formatters/DriverDateFormatter.cpp
     src/utils/formatters/DriverDateFormatter.h
@@ -79,6 +86,8 @@ set(PROJECT_SOURCES
     src/ui/widgets/ScoreRingWidget.h
     src/ui/widgets/SearchFilterBar.cpp
     src/ui/widgets/SearchFilterBar.h
+    src/ui/widgets/ReportNotification.cpp
+    src/ui/widgets/ReportNotification.h
 
     # UI - Popups
     src/ui/popups/DriverInfoPopup.cpp
@@ -113,6 +122,8 @@ target_include_directories(DriverVisualiser PRIVATE
     src/core/models
     src/core/scanner
     src/core/scoring
+    src/core/reporting
+    src/core/reporting/formatters
     src/utils/formatters
     src/utils/grouper
     src/utils/mappers
