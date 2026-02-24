@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QMenu>
 #include <vector>
 #include "DriverInfo.h"
 #include "SystemHealthSummary.h"
@@ -11,6 +12,14 @@
 
 class ScoreRingWidget;
 class IssueListWidget;
+
+/**
+ * @brief Report format selection
+ */
+enum class ReportFormat {
+    Text,
+    Html
+};
 
 /**
  * @class DashboardWidget
@@ -55,7 +64,7 @@ signals:
     void logWindowChanged(int days);
 
     /// Emitted when user clicks the Generate Report button
-    void reportRequested();
+    void reportRequested(ReportFormat format);
 
 private:
     void setupUi();

@@ -41,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
         QRect screenGeometry = screen->availableGeometry();
-        int defaultWidth  = screenGeometry.width()  / 2;
+        int defaultWidth  = screenGeometry.width() * 3 / 4;
         int defaultHeight = screenGeometry.height() * 3 / 4;
         resize(defaultWidth, defaultHeight);
         move((screenGeometry.width()  - defaultWidth)  / 2,
@@ -456,7 +456,7 @@ void MainWindow::applyFilters()
 // Report Generation
 // ============================================================================
 
-void MainWindow::onGenerateReportRequested()
+void MainWindow::onGenerateReportRequested(ReportFormat format)
 {
     // Don't allow report generation during scan
     if (m_scanning) {
@@ -492,18 +492,21 @@ void MainWindow::onGenerateReportRequested()
         return;
     }
 
-    // 2. Generate filename with timestamp
+    // 2. Generate filename with timestamp and format extension
     QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
-    QString fileName = QString("SystemReport_%1.txt").arg(timestamp);
+    QString extension = (format == ReportFormat::Html) ? ".html" : ".txt";
+    QString fileName = QString("SystemReport_%1%2").arg(timestamp, extension);
     QString filePath = reportDir + "/" + fileName;
 
-    // 3. Generate report content
+    // 3. Generate report content based on format
     ReportGenerator generator;
-    QString reportText = generator.generateTextReport(
-        m_allDrivers,
-        m_systemInfo,
-        m_selectedLogDays
-    );
+    QString reportText;
+    
+    if (format == ReportFormat::Html) {
+        reportText = generator.generateHtmlReport(m_allDrivers, m_systemInfo, m_selectedLogDays);
+    } else {
+        reportText = generator.generateTextReport(m_allDrivers, m_systemInfo, m_selectedLogDays);
+    }
 
     // 4. Save to file
     QFile file(filePath);
@@ -522,6 +525,8 @@ void MainWindow::onGenerateReportRequested()
     file.close();
 
     // 5. Show success notification with actions
-    ReportNotification* notification = new ReportNotification(filePath, reportText, this);
+    // For HTML, hide copy button (no one wants to copy HTML source code)
+    bool isHtml = (format == ReportFormat::Html);
+    ReportNotification* notification = new ReportNotification(filePath, reportText, this, isHtml);
     notification->show(3500);  // Show for 3.5 seconds
 }

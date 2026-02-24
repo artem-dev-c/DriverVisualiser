@@ -9,6 +9,7 @@
 #include <vector>
 #include "DriverInfo.h"
 #include "SystemInfo.h"
+#include "DashboardWidget.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -41,7 +42,7 @@ private:
     void onScanComplete();
 
     /// Called when user clicks Generate Report button
-    void onGenerateReportRequested();
+    void onGenerateReportRequested(ReportFormat format);
 
     Ui::MainWindow *ui;
 

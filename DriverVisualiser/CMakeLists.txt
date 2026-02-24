@@ -50,6 +50,8 @@ set(PROJECT_SOURCES
     src/core/reporting/formatters/IReportFormatter.h
     src/core/reporting/formatters/TextReportFormatter.cpp
     src/core/reporting/formatters/TextReportFormatter.h
+    src/core/reporting/formatters/HtmlReportFormatter.cpp
+    src/core/reporting/formatters/HtmlReportFormatter.h
 
     # Utils - Formatters
     src/utils/formatters/DriverDateFormatter.cpp

@@ -1,6 +1,7 @@
 #include "ReportGenerator.h"
 #include "IReportFormatter.h"
 #include "TextReportFormatter.h"
+#include "HtmlReportFormatter.h"
 #include "SystemHealthSummary.h"
 
 ReportGenerator::ReportGenerator()
@@ -18,6 +19,16 @@ QString ReportGenerator::generateTextReport(
 ) const
 {
     TextReportFormatter formatter;
+    return generateReport(drivers, systemInfo, scanWindowDays, formatter);
+}
+
+QString ReportGenerator::generateHtmlReport(
+    const std::vector<DriverInfo>& drivers,
+    const SystemInfo& systemInfo,
+    int scanWindowDays
+) const
+{
+    HtmlReportFormatter formatter;
     return generateReport(drivers, systemInfo, scanWindowDays, formatter);
 }
 

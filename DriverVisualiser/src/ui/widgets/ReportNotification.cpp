@@ -14,11 +14,13 @@
 ReportNotification::ReportNotification(
     const QString& filePath,
     const QString& reportText,
-    QWidget* parent
+    QWidget* parent,
+    bool isHtml
 )
     : QFrame(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
     , m_filePath(filePath)
     , m_reportText(reportText)
+    , m_isHtml(isHtml)
 {
     setAttribute(Qt::WA_DeleteOnClose, true);
     // Remove translucent background - we want solid
@@ -54,7 +56,10 @@ ReportNotification::ReportNotification(
 
 void ReportNotification::setupUi()
 {
-    setFixedSize(420, 110);
+    // Larger, more comfortable size
+    setMinimumSize(500, 130);
+    setMaximumWidth(700);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     
     // Main styling (matching DriverInfoPopup)
     setStyleSheet(
@@ -84,18 +89,33 @@ void ReportNotification::setupUi()
     
     // === File path ===
     QFileInfo fileInfo(m_filePath);
-    QString displayPath = fileInfo.fileName();  // Just the filename, not full path
+    QString fileName = fileInfo.fileName();
+    QString folderPath = fileInfo.absolutePath();
     
-    m_pathLabel = new QLabel("Saved to: " + displayPath);
-    QFont pathFont = m_pathLabel->font();
-    pathFont.setPointSize(9);
-    m_pathLabel->setFont(pathFont);
-    m_pathLabel->setStyleSheet(
-        "color: #999999;"
+    // Show filename prominently
+    QLabel* fileLabel = new QLabel(fileName);
+    QFont fileFont = fileLabel->font();
+    fileFont.setPointSize(10);
+    fileFont.setBold(true);
+    fileLabel->setFont(fileFont);
+    fileLabel->setStyleSheet(
+        "color: #cccccc;"
         "background: transparent;"
         "border: none;"
     );
-    m_pathLabel->setWordWrap(false);
+    mainLayout->addWidget(fileLabel);
+    
+    // Show folder path below
+    m_pathLabel = new QLabel("Location: " + folderPath);
+    QFont pathFont = m_pathLabel->font();
+    pathFont.setPointSize(8);
+    m_pathLabel->setFont(pathFont);
+    m_pathLabel->setStyleSheet(
+        "color: #888888;"
+        "background: transparent;"
+        "border: none;"
+    );
+    m_pathLabel->setWordWrap(true);
     mainLayout->addWidget(m_pathLabel);
     
     mainLayout->addSpacing(4);
@@ -104,28 +124,30 @@ void ReportNotification::setupUi()
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(8);
     
-    // Copy to Clipboard button
-    m_copyButton = new QPushButton("Copy to Clipboard");
-    m_copyButton->setFixedHeight(28);
-    m_copyButton->setStyleSheet(
-        "QPushButton {"
-        "   background-color: #3498db;"
-        "   color: white;"
-        "   border: none;"
-        "   border-radius: 4px;"
-        "   font-size: 10px;"
-        "   font-weight: bold;"
-        "   padding: 6px 12px;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: #2980b9;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: #1c5a85;"
-        "}"
-    );
-    connect(m_copyButton, &QPushButton::clicked, this, &ReportNotification::copyToClipboard);
-    buttonLayout->addWidget(m_copyButton);
+    // Copy to Clipboard button (only for text reports, not HTML)
+    if (!m_isHtml) {
+        m_copyButton = new QPushButton("Copy to Clipboard");
+        m_copyButton->setFixedHeight(28);
+        m_copyButton->setStyleSheet(
+            "QPushButton {"
+            "   background-color: #3498db;"
+            "   color: white;"
+            "   border: none;"
+            "   border-radius: 4px;"
+            "   font-size: 10px;"
+            "   font-weight: bold;"
+            "   padding: 6px 12px;"
+            "}"
+            "QPushButton:hover {"
+            "   background-color: #2980b9;"
+            "}"
+            "QPushButton:pressed {"
+            "   background-color: #1c5a85;"
+            "}"
+        );
+        connect(m_copyButton, &QPushButton::clicked, this, &ReportNotification::copyToClipboard);
+        buttonLayout->addWidget(m_copyButton);
+    }
     
     // Open Folder button
     m_folderButton = new QPushButton("Open Folder");
@@ -157,15 +179,19 @@ void ReportNotification::setupUi()
 
 void ReportNotification::show(int durationMs)
 {
+    // Set comfortable size for long paths
+    setMinimumWidth(450);
+    setMaximumWidth(650);
+    
     positionBottomRight();
-    QWidget::show();
     
-    // Start fade-in
+    // Skip fade animation - just show immediately (fixes lag)
+    m_opacity = 1.0;
     m_fadingOut = false;
-    m_opacity = 0.0;
-    m_fadeTimer->start(16);  // ~60 FPS
+    QWidget::show();
+    update();
     
-    // Schedule fade-out
+    // Schedule auto-hide
     m_autoHideTimer->start(durationMs);
 }
 
@@ -211,8 +237,8 @@ void ReportNotification::fadeIn()
 
 void ReportNotification::fadeOut()
 {
-    m_fadingOut = true;
-    m_fadeTimer->start(16);
+    // Just close immediately - skip animation to avoid lag
+    close();
 }
 
 void ReportNotification::copyToClipboard()

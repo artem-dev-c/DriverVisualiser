@@ -46,6 +46,19 @@ public:
     ) const;
 
     /**
+     * @brief Generate an interactive HTML system health report
+     * @param drivers All scanned drivers with health scores
+     * @param systemInfo System information (OS, build, architecture)
+     * @param scanWindowDays Number of days scanned for error logs (default: 7)
+     * @return Formatted HTML report ready to save
+     */
+    QString generateHtmlReport(
+        const std::vector<DriverInfo>& drivers,
+        const SystemInfo& systemInfo,
+        int scanWindowDays = 7
+    ) const;
+
+    /**
      * @brief Generate report using a custom formatter
      * @param drivers All scanned drivers
      * @param systemInfo System information

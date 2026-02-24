@@ -174,7 +174,7 @@ QWidget* DashboardWidget::buildControlColumn()
     // === Log window toggle ===
     QLabel* logLabel = new QLabel("Event log window:");
     QFont logLabelFont = logLabel->font();
-    logLabelFont.setPointSize(8);
+    logLabelFont.setPointSize(10);
     logLabel->setFont(logLabelFont);
     logLabel->setStyleSheet("color: #888888; background: transparent;");
     layout->addWidget(logLabel);
@@ -185,7 +185,8 @@ QWidget* DashboardWidget::buildControlColumn()
 
     auto makeToggleButton = [this](const QString& label, int days) -> QPushButton* {
         QPushButton* btn = new QPushButton(label);
-        btn->setFixedHeight(24);
+        btn->setFixedHeight(28);
+        btn->setFixedWidth(40);
         btn->setCheckable(false);
 
         connect(btn, &QPushButton::clicked, this, [this, days]() {
@@ -213,7 +214,7 @@ QWidget* DashboardWidget::buildControlColumn()
     // Note below toggle
     QLabel* toggleNote = new QLabel("Takes effect on next scan");
     QFont noteFont = toggleNote->font();
-    noteFont.setPointSize(7);
+    noteFont.setPointSize(10);
     noteFont.setItalic(true);
     toggleNote->setFont(noteFont);
     toggleNote->setStyleSheet("color: #555555; background: transparent;");
@@ -249,7 +250,7 @@ QWidget* DashboardWidget::buildControlColumn()
 
     layout->addSpacing(6);
 
-    // === Generate Report button ===
+    // === Generate Report button with format menu ===
     m_reportButton = new QPushButton("📄  Generate Report");
     m_reportButton->setFixedHeight(32);
     m_reportButton->setStyleSheet(
@@ -270,9 +271,42 @@ QWidget* DashboardWidget::buildControlColumn()
         "QPushButton:pressed {"
         "   background-color: #1e2d3a;"
         "}"
+        "QPushButton::menu-indicator {"
+        "   width: 0px;"  // Hide default dropdown arrow
+        "}"
     );
     m_reportButton->setCursor(Qt::PointingHandCursor);
-    connect(m_reportButton, &QPushButton::clicked, this, &DashboardWidget::reportRequested);
+    
+    // Create format menu
+    QMenu* reportMenu = new QMenu(m_reportButton);
+    reportMenu->setStyleSheet(
+        "QMenu {"
+        "   background-color: #2b2b2b;"
+        "   border: 1px solid #3d5a6e;"
+        "   border-radius: 4px;"
+        "   padding: 4px;"
+        "}"
+        "QMenu::item {"
+        "   padding: 6px 20px;"
+        "   color: #e0e0e0;"
+        "}"
+        "QMenu::item:selected {"
+        "   background-color: #3a5670;"
+        "   color: #5dade2;"
+        "}"
+    );
+    
+    QAction* textAction = reportMenu->addAction("📄 Text Report (.txt)");
+    QAction* htmlAction = reportMenu->addAction("🌐 Interactive HTML (.html)");
+    
+    connect(textAction, &QAction::triggered, this, [this]() {
+        emit reportRequested(ReportFormat::Text);
+    });
+    connect(htmlAction, &QAction::triggered, this, [this]() {
+        emit reportRequested(ReportFormat::Html);
+    });
+    
+    m_reportButton->setMenu(reportMenu);
     layout->addWidget(m_reportButton);
 
     layout->addStretch();

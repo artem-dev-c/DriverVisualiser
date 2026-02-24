@@ -33,11 +33,13 @@ public:
      * @param filePath Full path to the saved report file
      * @param reportText The generated report content (for clipboard copy)
      * @param parent Parent widget (typically MainWindow)
+     * @param isHtml True if HTML report (hides copy button)
      */
     explicit ReportNotification(
         const QString& filePath,
         const QString& reportText,
-        QWidget* parent = nullptr
+        QWidget* parent = nullptr,
+        bool isHtml = false
     );
 
     /**
@@ -63,6 +65,7 @@ private:
 
     QString m_filePath;
     QString m_reportText;
+    bool m_isHtml = false;  // True if HTML report (hides copy button)
     
     QLabel*      m_titleLabel   = nullptr;
     QLabel*      m_pathLabel    = nullptr;
