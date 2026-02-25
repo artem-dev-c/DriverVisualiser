@@ -9,10 +9,12 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
 #include <QApplication>
-#include <QPalette>
 #include <QProgressBar>
+
+// ============================================================================
+// Construction
+// ============================================================================
 
 DriverCardWidget::DriverCardWidget(const DriverInfo& driver, int logDays, QWidget* parent)
     : QFrame(parent)
@@ -23,22 +25,53 @@ DriverCardWidget::DriverCardWidget(const DriverInfo& driver, int logDays, QWidge
     setupUi(driver);
 }
 
+// ============================================================================
+// UI Setup
+// ============================================================================
+
 void DriverCardWidget::setupUi(const DriverInfo& driver)
 {
-    // Use native styling - just a subtle frame
-    setFrameStyle(QFrame::StyledPanel | QFrame::Plain);
+    setFrameStyle(QFrame::NoFrame);
     setAutoFillBackground(true);
-    
-    // Main layout
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(12, 8, 12, 8);
-    mainLayout->setSpacing(6);
+    applyCardStyle(driver);
 
-    // === Top row: Name + Importance Indicator + Info Button ===
-    QHBoxLayout* headerLayout = new QHBoxLayout();
-    headerLayout->setSpacing(12);
+    // ── Outer layout: accent bar (left) + card content ───────────────────────
+    QHBoxLayout* outerLayout = new QHBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->setSpacing(0);
 
-    // Device name (large, bold)
+    // Left accent bar — colored strip indicating worst health state
+    QFrame* accentBar = new QFrame();
+    accentBar->setFixedWidth(4);
+    accentBar->setStyleSheet(QString(
+        "QFrame {"
+        "   background-color: %1;"
+        "   border-radius: 2px;"
+        "}"
+    ).arg(getAccentColor(driver)));
+    outerLayout->addWidget(accentBar);
+
+    // ── Inner content widget ─────────────────────────────────────────────────
+    QWidget* content = new QWidget();
+    content->setStyleSheet("background: transparent;");
+
+    QHBoxLayout* contentLayout = new QHBoxLayout(content);
+    contentLayout->setContentsMargins(14, 10, 12, 10);
+    contentLayout->setSpacing(0);
+
+    // ── 1. Left block: name + importance badge + metadata ────────────────────
+    QWidget* leftBlock = new QWidget();
+    leftBlock->setStyleSheet("background: transparent;");
+    QVBoxLayout* leftLayout = new QVBoxLayout(leftBlock);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(5);
+
+    // ── 1a. Name row: device name + importance badge ──────────────────────────
+    QHBoxLayout* nameRow = new QHBoxLayout();
+    nameRow->setContentsMargins(0, 0, 0, 0);
+    nameRow->setSpacing(8);
+
+    // Device name — use provider if available, else class name
     QString deviceName;
     if (!driver.provider.empty() && driver.provider != L"Unknown") {
         deviceName = QString::fromStdWString(driver.provider);
@@ -48,225 +81,320 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
 
     m_nameLabel = new QLabel(deviceName);
     QFont nameFont = m_nameLabel->font();
-    nameFont.setPointSize(10);
+    nameFont.setPointSize(11);
     nameFont.setBold(true);
     m_nameLabel->setFont(nameFont);
-    headerLayout->addWidget(m_nameLabel, 1); // Stretch to fill
+    m_nameLabel->setStyleSheet("color: #ffffff; background: transparent;");
+    nameRow->addWidget(m_nameLabel);
 
-    // Importance indicator (3 squares)
+    // Importance badge (replaces 3-square indicator)
     DriverImportance importance = DriverImportanceEvaluator::evaluate(driver);
-    QWidget* importanceWidget = createImportanceIndicator(importance);
-    headerLayout->addWidget(importanceWidget);
+    nameRow->addWidget(createImportanceBadge(importance));
 
-    // Info button (small gear/settings icon)
+    nameRow->addStretch();
+
+    leftLayout->addLayout(nameRow);
+
+    // ── 1b. Metadata row: status pill · version · date ────────────────────────
+    QHBoxLayout* metaRow = new QHBoxLayout();
+    metaRow->setContentsMargins(0, 0, 0, 0);
+    metaRow->setSpacing(0);
+
+    // Status — small pill badge
+    QString statusText  = DriverStatusFormatter::statusToString(driver.status);
+    QString statusCol   = statusColor(driver.status);
+    m_statusLabel = new QLabel(statusText);
+    QFont statusFont = m_statusLabel->font();
+    statusFont.setPointSize(9);
+    statusFont.setBold(true);
+    m_statusLabel->setFont(statusFont);
+    m_statusLabel->setStyleSheet(QString(
+        "QLabel {"
+        "   color: %1;"
+        "   background-color: transparent;"
+        "   border: 1px solid %1;"
+        "   border-radius: 4px;"
+        "   padding: 1px 7px;"
+        "}"
+    ).arg(statusCol));
+    metaRow->addWidget(m_statusLabel);
+
+    // Separator dots between metadata items
+    auto makeSep = []() -> QLabel* {
+        QLabel* sep = new QLabel("  ·  ");
+        sep->setStyleSheet("color: #4a4a4a; background: transparent;");
+        return sep;
+    };
+
+    // Version
+    metaRow->addWidget(makeSep());
+    m_versionLabel = new QLabel(DriverVersionFormatter::versionToString(driver.version));
+    m_versionLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    metaRow->addWidget(m_versionLabel);
+
+    // Manufacturer
+    metaRow->addWidget(makeSep());
+    m_manufacturerLabel = new QLabel(QString::fromStdWString(driver.manufacturer));
+    m_manufacturerLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    metaRow->addWidget(m_manufacturerLabel);
+
+    // Driver date
+    QString driverDateText = DriverDateFormatter::isDriverDateValid(driver.driverDate)
+        ? DriverDateFormatter::dateToString(driver.driverDate)
+        : "Unknown";
+    metaRow->addWidget(makeSep());
+    m_driverDateLabel = new QLabel("Driver: " + driverDateText);
+    m_driverDateLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    metaRow->addWidget(m_driverDateLabel);
+
+    // Install date
+    metaRow->addWidget(makeSep());
+    m_installDateLabel = new QLabel("Installed: " + DriverDateFormatter::dateToString(driver.installDate));
+    m_installDateLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    metaRow->addWidget(m_installDateLabel);
+
+    metaRow->addStretch();
+    leftLayout->addLayout(metaRow);
+
+    contentLayout->addWidget(leftBlock, 1);  // Stretch to fill
+
+    // ── 2. Health block ───────────────────────────────────────────────────────
+    contentLayout->addSpacing(16);
+    contentLayout->addWidget(createHealthBlock(driver.healthScore));
+
+    // ── 3. Error log indicator ────────────────────────────────────────────────
+    contentLayout->addSpacing(10);
+    m_errorLogIndicator = new ErrorLogIndicatorWidget(driver.errorLog, m_logDays);
+    contentLayout->addWidget(m_errorLogIndicator);
+
+    // ── 4. Flag indicator ─────────────────────────────────────────────────────
+    contentLayout->addSpacing(10);
+    m_flagIndicator = new FlagIndicatorWidget(driver.healthFlags);
+    contentLayout->addWidget(m_flagIndicator);
+
+    // ── 5. Info button ────────────────────────────────────────────────────────
+    contentLayout->addSpacing(8);
     QPushButton* infoButton = new QPushButton("ⓘ");
-    infoButton->setFixedSize(20, 20);
+    infoButton->setFixedSize(22, 22);
     infoButton->setFlat(true);
     infoButton->setStyleSheet(
         "QPushButton {"
-        "   color: #7f8c8d;"
-        "   font-size: 14px;"
+        "   color: #555555;"
+        "   font-size: 15px;"
         "   border: none;"
-        "   background-color: transparent;"
+        "   background: transparent;"
         "}"
-        "QPushButton:hover {"
-        "   color: #3498db;"
-        "}"
-        "QPushButton:pressed {"
-        "   color: #2980b9;"
-        "}"
+        "QPushButton:hover { color: #5dade2; }"
+        "QPushButton:pressed { color: #2980b9; }"
     );
     infoButton->setCursor(Qt::PointingHandCursor);
     infoButton->setToolTip("View technical details");
     connect(infoButton, &QPushButton::clicked, [this, infoButton]() {
-        // Create popup if not exists
         if (!m_infoPopup) {
             m_infoPopup = new DriverInfoPopup(m_driver, nullptr);
         }
-        
-        // Check if popup was just closed
-        if (m_infoPopup->wasRecentlyClosed()) {
-            return;
-        }
-        
-        // Toggle popup
+        if (m_infoPopup->wasRecentlyClosed()) return;
         if (m_infoPopup->isVisible()) {
             m_infoPopup->hide();
         } else {
             m_infoPopup->showRelativeTo(infoButton);
         }
     });
-    headerLayout->addWidget(infoButton);
+    contentLayout->addWidget(infoButton);
 
-    mainLayout->addLayout(headerLayout);
-
-    // === Content area: Details (left) + Flag Indicator (right) ===
-    QHBoxLayout* contentLayout = new QHBoxLayout();
-    contentLayout->setSpacing(15);
-
-    // Left side: Two rows of details
-    QVBoxLayout* detailsLayout = new QVBoxLayout();
-    detailsLayout->setSpacing(4);
-
-    // Row 1: Version, Manufacturer
-    QHBoxLayout* row1Layout = new QHBoxLayout();
-    row1Layout->setSpacing(20);
-
-    QString versionText = "Version: " + DriverVersionFormatter::versionToString(driver.version);
-    m_versionLabel = new QLabel(versionText);
-    row1Layout->addWidget(m_versionLabel);
-
-    QString manufacturerText = "Manufacturer: " + QString::fromStdWString(driver.manufacturer);
-    m_manufacturerLabel = new QLabel(manufacturerText);
-    row1Layout->addWidget(m_manufacturerLabel);
-
-    row1Layout->addStretch();
-    detailsLayout->addLayout(row1Layout);
-
-    // Row 2: Status, Driver Date, Installed, Health
-    QHBoxLayout* row2Layout = new QHBoxLayout();
-    row2Layout->setSpacing(15);
-
-    // Status (color coded)
-    QString statusText = DriverStatusFormatter::statusToString(driver.status);
-    m_statusLabel = new QLabel("Status: " + statusText);
-    QString statusColor = getStatusColor(driver.status);
-    m_statusLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(statusColor));
-    row2Layout->addWidget(m_statusLabel);
-
-    // Driver date
-    QString driverDateText = DriverDateFormatter::isDriverDateValid(driver.driverDate) 
-        ? DriverDateFormatter::dateToString(driver.driverDate) 
-        : "Unknown";
-    m_driverDateLabel = new QLabel("Driver Date: " + driverDateText);
-    row2Layout->addWidget(m_driverDateLabel);
-
-    // Install date
-    QString installDateText = DriverDateFormatter::dateToString(driver.installDate);
-    m_installDateLabel = new QLabel("Installed: " + installDateText);
-    row2Layout->addWidget(m_installDateLabel);
-
-    // Health bar
-    QLabel* healthLabel = new QLabel("Health:");
-    row2Layout->addWidget(healthLabel);
-    
-    QWidget* healthBar = createHealthBar(driver.healthScore);
-    row2Layout->addWidget(healthBar);
-    
-    // Health percentage
-    m_healthPercentLabel = new QLabel(QString("%1%").arg(driver.healthScore));
-    m_healthPercentLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(getHealthColor(driver.healthScore)));
-    row2Layout->addWidget(m_healthPercentLabel);
-
-    row2Layout->addStretch();
-    detailsLayout->addLayout(row2Layout);
-
-    contentLayout->addLayout(detailsLayout, 1);
-
-    // Middle: Error log indicator
-    m_errorLogIndicator = new ErrorLogIndicatorWidget(driver.errorLog, m_logDays);
-    contentLayout->addWidget(m_errorLogIndicator);
-
-    // Right side: Flag indicator (spans both rows visually)
-    m_flagIndicator = new FlagIndicatorWidget(driver.healthFlags);
-    contentLayout->addWidget(m_flagIndicator);
-
-    mainLayout->addLayout(contentLayout);
+    outerLayout->addWidget(content);
 }
 
-QWidget* DriverCardWidget::createHealthBar(int healthScore)
+// ============================================================================
+// Card Styling
+// ============================================================================
+
+void DriverCardWidget::applyCardStyle(const DriverInfo& driver)
 {
-    m_healthBar = new QProgressBar();
-    m_healthBar->setRange(0, 100);
-    m_healthBar->setValue(healthScore);
-    m_healthBar->setTextVisible(false);
-    m_healthBar->setFixedHeight(6);
-    m_healthBar->setFixedWidth(60);
-    
-    QString color = getHealthColor(healthScore);
-    
-    m_healthBar->setStyleSheet(QString(
-        "QProgressBar {"
-        "   border: 1px solid #ccc;"
-        "   border-radius: 3px;"
-        "   background-color: #e0e0e0;"
-        "}"
-        "QProgressBar::chunk {"
+    QString bg     = getCardBackground(driver);
+    QString accent = getAccentColor(driver);
+
+    // Healthy cards: near-invisible border so they recede visually
+    // Warning cards: soften orange border opacity (-15%)
+    // Critical cards: full red border to demand attention
+    QString borderColor;
+    bool hasIssue = !driver.healthFlags.empty() ||
+                    driver.status == DriverStatus::Error;
+
+    if (!hasIssue) {
+        borderColor = "#2a2a2a";
+    } else if (accent == "#f39c12") {
+        borderColor = "rgba(243, 156, 18, 0.55)";   // orange at ~55% — was 100%
+    } else {
+        borderColor = accent;
+    }
+
+    setStyleSheet(QString(
+        "DriverCardWidget {"
         "   background-color: %1;"
-        "   border-radius: 2px;"
+        "   border: 1px solid %2;"
+        "   border-left: none;"
+        "   border-radius: 10px;"
+        "}"
+    ).arg(bg, borderColor));
+}
+
+// ============================================================================
+// Sub-widget Builders
+// ============================================================================
+
+QWidget* DriverCardWidget::createImportanceBadge(DriverImportance importance)
+{
+    QString label = importanceLabel(importance);
+    QString color = importanceColor(importance);
+
+    QLabel* badge = new QLabel(label);
+    QFont f = badge->font();
+    f.setPointSize(8);
+    f.setBold(true);
+    badge->setFont(f);
+    badge->setStyleSheet(QString(
+        "QLabel {"
+        "   color: %1;"
+        "   background-color: transparent;"
+        "   border: 1px solid %1;"
+        "   border-radius: 4px;"
+        "   padding: 1px 7px;"
         "}"
     ).arg(color));
 
-    return m_healthBar;
+    return badge;
 }
 
-QWidget* DriverCardWidget::createImportanceIndicator(DriverImportance importance)
+QWidget* DriverCardWidget::createHealthBlock(int score)
 {
-    QWidget* container = new QWidget();
-    QHBoxLayout* layout = new QHBoxLayout(container);
+    QWidget* block = new QWidget();
+    block->setFixedWidth(80);
+    block->setStyleSheet("background: transparent;");
+
+    QVBoxLayout* layout = new QVBoxLayout(block);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(4);
+    layout->setAlignment(Qt::AlignCenter);
 
-    int filledCount = 0;
-    switch (importance) {
-        case DriverImportance::Critical:  filledCount = 3; break;
-        case DriverImportance::Important: filledCount = 2; break;
-        case DriverImportance::Optional:  filledCount = 1; break;
-        default:                          filledCount = 0; break;
-    }
+    // Large bold percentage
+    m_healthPercentLabel = new QLabel(QString("%1%").arg(score));
+    QFont pctFont = m_healthPercentLabel->font();
+    pctFont.setPointSize(15);
+    pctFont.setBold(true);
+    m_healthPercentLabel->setFont(pctFont);
+    m_healthPercentLabel->setAlignment(Qt::AlignCenter);
+    m_healthPercentLabel->setStyleSheet(
+        QString("color: %1; background: transparent;").arg(healthColor(score))
+    );
+    layout->addWidget(m_healthPercentLabel);
 
-    QString activeColor = getImportanceColor(importance);
+    // Slim progress bar — dark track, colored fill
+    m_healthBar = new QProgressBar();
+    m_healthBar->setRange(0, 100);
+    m_healthBar->setValue(score);
+    m_healthBar->setTextVisible(false);
+    m_healthBar->setFixedHeight(6);
+    m_healthBar->setFixedWidth(64);
+    m_healthBar->setStyleSheet(QString(
+        "QProgressBar {"
+        "   border: none;"
+        "   border-radius: 3px;"
+        "   background-color: #1e1e1e;"
+        "}"
+        "QProgressBar::chunk {"
+        "   background-color: %1;"
+        "   border-radius: 3px;"    // fully rounded — matches half of 6px height
+        "}"
+    ).arg(healthColor(score)));
+    layout->addWidget(m_healthBar, 0, Qt::AlignCenter);
 
-    for (int i = 0; i < 3; ++i) {
-        QLabel* square = new QLabel();
-        square->setFixedSize(16, 16);
-        
-        if (i < filledCount) {
-            square->setStyleSheet(QString(
-                "background-color: %1;"
-                "border-radius: 3px;"
-            ).arg(activeColor));
-        } else {
-            square->setStyleSheet(
-                "background-color: #ddd;"
-                "border-radius: 3px;"
-            );
+    // "Health" sub-label
+    QLabel* subLabel = new QLabel("Health");
+    QFont subFont = subLabel->font();
+    subFont.setPointSize(8);
+    subLabel->setFont(subFont);
+    subLabel->setAlignment(Qt::AlignCenter);
+    subLabel->setStyleSheet("color: #555555; background: transparent;");
+    layout->addWidget(subLabel);
+
+    return block;
+}
+
+// ============================================================================
+// Color & Label Helpers
+// ============================================================================
+
+QString DriverCardWidget::getAccentColor(const DriverInfo& driver) const
+{
+    // Derive worst state from health flags and status
+    bool hasCritical = false;
+    bool hasWarning  = false;
+
+    for (const auto& flag : driver.healthFlags) {
+        if (flag.id == L"NOT_STARTED_BY_DESIGN" ||
+            flag.id == L"DRIVER_NOT_LOADED_BY_DESIGN" ||
+            flag.id == L"SYSTEM_CRITICAL") {
+            continue;
         }
-        
-        layout->addWidget(square);
+        if (flag.severity == HealthFlagSeverity::Critical) hasCritical = true;
+        if (flag.severity == HealthFlagSeverity::Warning)  hasWarning  = true;
     }
 
-    return container;
+    if (driver.status == DriverStatus::Error) hasCritical = true;
+
+    if (hasCritical) return "#e74c3c";
+    if (hasWarning)  return "#f39c12";
+    if (driver.healthScore < 80) return "#f1c40f";
+
+    return "#2d2d2d";   // Healthy: nearly invisible, just structural
 }
 
-QString DriverCardWidget::getImportanceColor(DriverImportance importance)
+QString DriverCardWidget::getCardBackground(const DriverInfo& driver) const
+{
+    QString accent = getAccentColor(driver);
+
+    if (accent == "#e74c3c") return "rgba(231, 76, 60, 0.05)";
+    if (accent == "#f39c12") return "rgba(243, 156, 18, 0.03)";   // reduced from 0.04
+    if (accent == "#f1c40f") return "rgba(241, 196, 15, 0.03)";
+
+    return "#242424";   // Standard healthy card background
+}
+
+QString DriverCardWidget::importanceColor(DriverImportance importance)
 {
     switch (importance) {
-        case DriverImportance::Critical:  return "#e74c3c"; // Red
-        case DriverImportance::Important: return "#f39c12"; // Orange
-        case DriverImportance::Optional:  return "#5af14a"; // Green
-        default:                          return "#95a5a6"; // Gray
+        case DriverImportance::Critical:  return "#e74c3c";
+        case DriverImportance::Important: return "#f39c12";
+        case DriverImportance::Optional:  return "#27ae60";
+        default:                          return "#5dade2";   // Virtual / unknown → blue
     }
 }
 
-QString DriverCardWidget::getHealthColor(int healthScore)
+QString DriverCardWidget::importanceLabel(DriverImportance importance)
 {
-    if (healthScore >= 80) {
-        return "#27ae60"; // Green
-    } else if (healthScore >= 50) {
-        return "#f39c12"; // Orange
-    } else {
-        return "#e74c3c"; // Red
+    switch (importance) {
+        case DriverImportance::Critical:  return "Critical";
+        case DriverImportance::Important: return "Important";
+        case DriverImportance::Optional:  return "Optional";
+        default:                          return "Virtual";
     }
 }
 
-QString DriverCardWidget::getStatusColor(DriverStatus status)
+QString DriverCardWidget::healthColor(int score)
+{
+    if (score >= 80) return "#27ae60";
+    if (score >= 50) return "#f39c12";
+    return "#e74c3c";
+}
+
+QString DriverCardWidget::statusColor(DriverStatus status)
 {
     switch (status) {
         case DriverStatus::Ok:         return "#27ae60";
         case DriverStatus::Error:      return "#e74c3c";
         case DriverStatus::NotStarted: return "#f39c12";
-        case DriverStatus::Disabled:   return "#95a5a6";
-        default:                       return "#666666";
+        case DriverStatus::Disabled:   return "#888888";
+        default:                       return "#555555";
     }
 }

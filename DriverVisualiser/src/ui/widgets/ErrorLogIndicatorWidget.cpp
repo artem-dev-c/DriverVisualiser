@@ -3,41 +3,50 @@
 #include <QHBoxLayout>
 #include <QMouseEvent>
 
+// ============================================================================
+// Construction
+// ============================================================================
+
 ErrorLogIndicatorWidget::ErrorLogIndicatorWidget(const std::vector<ErrorLogEntry>& entries,
-                                                     int logDays,
-                                                     QWidget* parent)
+                                                 int logDays,
+                                                 QWidget* parent)
     : QFrame(parent)
     , m_entries(entries)
     , m_logDays(logDays)
-    , m_textLabel(nullptr)
-    , m_arrowLabel(nullptr)
-    , m_popup(nullptr)
     , m_hasLogs(!entries.empty())
 {
     setupUi();
     updateAppearance();
 }
 
+// ============================================================================
+// UI
+// ============================================================================
+
 void ErrorLogIndicatorWidget::setupUi()
 {
-    setFixedHeight(40);
-    setMinimumWidth(180);
-    setMaximumWidth(220);
-    
+    // Fixed dimensions — mirrors FlagIndicatorWidget for consistent alignment
+    setFixedHeight(34);
+    setFixedWidth(190);
+
     QHBoxLayout* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(10, 6, 10, 6);
-    layout->setSpacing(8);
-    
-    // Main text
+    layout->setContentsMargins(10, 0, 10, 0);
+    layout->setSpacing(6);
+
     m_textLabel = new QLabel();
     m_textLabel->setWordWrap(false);
+    QFont f = m_textLabel->font();
+    f.setPointSize(9);
+    m_textLabel->setFont(f);
     layout->addWidget(m_textLabel, 1);
-    
-    // Arrow indicator (only if has logs)
-    m_arrowLabel = new QLabel("▼");
-    m_arrowLabel->setFixedWidth(12);
+
+    m_arrowLabel = new QLabel("▾");
+    m_arrowLabel->setFixedWidth(10);
+    QFont af = m_arrowLabel->font();
+    af.setPointSize(9);
+    m_arrowLabel->setFont(af);
     layout->addWidget(m_arrowLabel);
-    
+
     if (m_hasLogs) {
         setCursor(Qt::PointingHandCursor);
     }
@@ -46,145 +55,142 @@ void ErrorLogIndicatorWidget::setupUi()
 void ErrorLogIndicatorWidget::updateAppearance()
 {
     if (!m_hasLogs) {
-        // No logs - green/gray appearance
-        m_textLabel->setText("No logs found");
+        // Neutral "no logs" — subdued, mirrors FlagIndicatorWidget healthy state
+        m_textLabel->setText("No logs");
+        m_textLabel->setStyleSheet("color: #484848; background: transparent;");
         m_arrowLabel->setVisible(false);
-        
+
         setStyleSheet(
             "ErrorLogIndicatorWidget {"
-            "   border: 1px solid #27ae60;"
-            "   border-radius: 4px;"
-            "   background-color: rgba(39, 174, 96, 0.1);"
+            "   border: 1px solid #2e2e2e;"
+            "   border-radius: 8px;"
+            "   background-color: transparent;"
             "}"
         );
-        m_textLabel->setStyleSheet("color: #27ae60;");
-    } else {
-        // Has logs - count by severity
-        int critical = countCritical();
-        int errors = countErrors();
-        int warnings = countWarnings();
-        
-        QString text;
-        QString dayLabel = QString("(%1d)").arg(m_logDays);
-        if (critical > 0) {
-            text = QString("%1 critical, %2 errors %3").arg(critical).arg(errors).arg(dayLabel);
-        } else if (errors > 0) {
-            text = QString("%1 errors %2").arg(errors).arg(dayLabel);
-        } else {
-            text = QString("%1 warnings %2").arg(warnings).arg(dayLabel);
-        }
-        
-        m_textLabel->setText(text);
-        
-        int totalIssues = critical + errors;
-        QString outlineColor = getOutlineColor(totalIssues);
-        QString bgColor = getBackgroundColor(totalIssues);
-        
-        setStyleSheet(QString(
-            "ErrorLogIndicatorWidget {"
-            "   border: 2px solid %1;"
-            "   border-radius: 4px;"
-            "   background-color: %2;"
-            "}"
-        ).arg(outlineColor, bgColor));
-        
-        m_textLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(outlineColor));
-        m_arrowLabel->setStyleSheet(QString("color: %1;").arg(outlineColor));
-        m_arrowLabel->setVisible(true);
+        return;
     }
+
+    // Build compact summary text
+    int critical = countCritical();
+    int errors   = countErrors();
+    int warnings = countWarnings();
+    int total    = (int)m_entries.size();
+
+    QString dayLabel = QString("(%1d)").arg(m_logDays);
+    QString text;
+
+    if (critical > 0) {
+        text = QString("%1 critical %2").arg(critical).arg(dayLabel);
+    } else if (errors > 0) {
+        text = QString("%1 error%2 %3")
+                   .arg(errors)
+                   .arg(errors > 1 ? "s" : "")
+                   .arg(dayLabel);
+    } else {
+        text = QString("%1 warning%2 %3")
+                   .arg(warnings)
+                   .arg(warnings > 1 ? "s" : "")
+                   .arg(dayLabel);
+    }
+
+    m_textLabel->setText(text);
+
+    // Color severity based on errors+critical count
+    int errCount     = critical + errors;
+    QString outline  = outlineColor(errCount);
+    QString bg       = bgColor(errCount);
+
+    setStyleSheet(QString(
+        "ErrorLogIndicatorWidget {"
+        "   border: 1px solid %1;"
+        "   border-radius: 8px;"
+        "   background-color: %2;"
+        "}"
+    ).arg(outline, bg));
+
+    m_textLabel->setStyleSheet(
+        QString("color: %1; font-weight: bold; background: transparent;").arg(outline)
+    );
+    m_arrowLabel->setStyleSheet(
+        QString("color: %1; background: transparent;").arg(outline)
+    );
+    m_arrowLabel->setVisible(true);
 }
+
+// ============================================================================
+// Interaction
+// ============================================================================
 
 void ErrorLogIndicatorWidget::mousePressEvent(QMouseEvent* event)
 {
     if (!m_hasLogs) {
-        return;  // No popup if no logs
+        QFrame::mousePressEvent(event);
+        return;
     }
-    
+
     if (event->button() == Qt::LeftButton) {
-        // Create popup if not exists
         if (!m_popup) {
             m_popup = new ErrorLogPopupWidget(m_entries, m_logDays, nullptr);
         }
-        
-        // Check if popup was just closed (prevent reopen on same click)
-        if (m_popup->wasRecentlyClosed()) {
-            return;
-        }
-        
-        // Toggle popup
+        if (m_popup->wasRecentlyClosed()) return;
+
         if (m_popup->isVisible()) {
             m_popup->hide();
         } else {
             m_popup->showRelativeTo(this);
         }
     }
-    
+
     QFrame::mousePressEvent(event);
 }
 
 // ============================================================================
-// Severity Counting
+// Counting
 // ============================================================================
 
 int ErrorLogIndicatorWidget::countCritical() const
 {
-    int count = 0;
-    for (const auto& entry : m_entries) {
-        if (entry.level == L"Critical") {
-            count++;
-        }
+    int n = 0;
+    for (const auto& e : m_entries) {
+        if (e.level == L"Critical") ++n;
     }
-    return count;
+    return n;
 }
 
 int ErrorLogIndicatorWidget::countErrors() const
 {
-    int count = 0;
-    for (const auto& entry : m_entries) {
-        if (entry.level == L"Error" || entry.level == L"Critical") {
-            count++;
-        }
+    int n = 0;
+    for (const auto& e : m_entries) {
+        if (e.level == L"Error" || e.level == L"Critical") ++n;
     }
-    return count;
+    return n;
 }
 
 int ErrorLogIndicatorWidget::countWarnings() const
 {
-    int count = 0;
-    for (const auto& entry : m_entries) {
-        if (entry.level == L"Warning") {
-            count++;
-        }
+    int n = 0;
+    for (const auto& e : m_entries) {
+        if (e.level == L"Warning") ++n;
     }
-    return count;
+    return n;
 }
 
 // ============================================================================
 // Color Helpers
 // ============================================================================
 
-QString ErrorLogIndicatorWidget::getOutlineColor(int errorCount)
+QString ErrorLogIndicatorWidget::outlineColor(int errorCount)
 {
-    if (errorCount >= 5) {
-        return "#e74c3c";  // Red - many errors
-    } else if (errorCount >= 2) {
-        return "#f39c12";  // Orange - some errors
-    } else if (errorCount >= 1) {
-        return "#f1c40f";  // Yellow - few errors
-    } else {
-        return "#3498db";  // Blue - warnings only
-    }
+    if (errorCount >= 5) return "#e74c3c";
+    if (errorCount >= 2) return "rgba(243, 156, 18, 0.75)";   // softened orange
+    if (errorCount >= 1) return "#f1c40f";
+    return "#5dade2";
 }
 
-QString ErrorLogIndicatorWidget::getBackgroundColor(int errorCount)
+QString ErrorLogIndicatorWidget::bgColor(int errorCount)
 {
-    if (errorCount >= 5) {
-        return "rgba(231, 76, 60, 0.15)";   // Red
-    } else if (errorCount >= 2) {
-        return "rgba(243, 156, 18, 0.15)";  // Orange
-    } else if (errorCount >= 1) {
-        return "rgba(241, 196, 15, 0.15)";  // Yellow
-    } else {
-        return "rgba(52, 152, 219, 0.15)";  // Blue
-    }
+    if (errorCount >= 5) return "rgba(231, 76, 60, 0.12)";
+    if (errorCount >= 2) return "rgba(243, 156, 18, 0.08)";   // reduced from 0.12
+    if (errorCount >= 1) return "rgba(241, 196, 15, 0.10)";
+    return "rgba(93, 173, 226, 0.10)";
 }

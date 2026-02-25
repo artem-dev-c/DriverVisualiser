@@ -7,13 +7,19 @@
 
 class ErrorLogPopupWidget;
 
-/**
- * @class ErrorLogIndicatorWidget
- * @brief Displays error log summary with expandable popup.
- *
- * Similar to FlagIndicatorWidget - shows a compact summary that expands
- * to show full error log entries when clicked.
- */
+/// ============================================================================
+/// ErrorLogIndicatorWidget
+/// ============================================================================
+/// Compact pill summarising event log entries for a driver.
+/// Clicking opens ErrorLogPopupWidget with the full entry list.
+///
+/// Visual design (updated):
+///   - border-radius: 8px (consistent with FlagIndicatorWidget and card)
+///   - Fixed width to align with FlagIndicatorWidget across all cards
+///   - "No logs" state is subtle/transparent — not green (green implies healthy,
+///     absence of logs is just neutral)
+///   - Severity coloring mirrors FlagIndicatorWidget palette exactly
+/// ============================================================================
 class ErrorLogIndicatorWidget : public QFrame
 {
     Q_OBJECT
@@ -29,20 +35,18 @@ protected:
 private:
     void setupUi();
     void updateAppearance();
-    
-    /// Get color for error count severity
-    static QString getOutlineColor(int errorCount);
-    static QString getBackgroundColor(int errorCount);
-    
-    /// Count errors by level
-    int countErrors() const;
-    int countWarnings() const;
+
     int countCritical() const;
+    int countErrors()   const;
+    int countWarnings() const;
+
+    static QString outlineColor(int errorCount);
+    static QString bgColor(int errorCount);
 
     std::vector<ErrorLogEntry> m_entries;
-    int m_logDays;
-    QLabel* m_textLabel;
-    QLabel* m_arrowLabel;
-    ErrorLogPopupWidget* m_popup;
-    bool m_hasLogs;
+    int     m_logDays  = 7;
+    QLabel* m_textLabel  = nullptr;
+    QLabel* m_arrowLabel = nullptr;
+    ErrorLogPopupWidget* m_popup = nullptr;
+    bool    m_hasLogs = false;
 };

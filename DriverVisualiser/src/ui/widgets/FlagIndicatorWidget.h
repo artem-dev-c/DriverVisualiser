@@ -2,12 +2,23 @@
 
 #include <QFrame>
 #include <QLabel>
-#include <QVBoxLayout>
 #include <vector>
 #include "HealthFlag.h"
 
 class FlagPopupWidget;
 
+/// ============================================================================
+/// FlagIndicatorWidget
+/// ============================================================================
+/// Compact pill showing the most critical health flag for a driver.
+/// Clicking opens FlagPopupWidget with the full flag list.
+///
+/// Visual design (updated):
+///   - border-radius: 8px (consistent with card's 10px rounding)
+///   - 2px colored border + subtle tinted background when issues exist
+///   - Greyed-out "No issues" state with no border emphasis
+///   - Fixed width so all cards align their right-side indicators
+/// ============================================================================
 class FlagIndicatorWidget : public QFrame
 {
     Q_OBJECT
@@ -21,20 +32,16 @@ protected:
 private:
     void setupUi();
     void updateAppearance();
-    
-    /// Get color for severity level
-    static QString getOutlineColor(HealthFlagSeverity severity);
-    static QString getBackgroundColor(HealthFlagSeverity severity);
-    
-    /// Find the most critical flag (for display)
-    const HealthFlag* getMostCriticalFlag() const;
-    
-    /// Sort flags by severity (Critical first)
-    static std::vector<HealthFlag> sortFlagsBySeverity(const std::vector<HealthFlag>& flags);
+
+    static QString outlineColor(HealthFlagSeverity severity);
+    static QString backgroundColor(HealthFlagSeverity severity);
+
+    const HealthFlag* mostCriticalFlag() const;
+    static std::vector<HealthFlag> sortedBySeverity(const std::vector<HealthFlag>& flags);
 
     std::vector<HealthFlag> m_flags;
-    QLabel* m_textLabel;
-    QLabel* m_arrowLabel;
-    FlagPopupWidget* m_popup;
-    bool m_hasIssues;
+    QLabel*          m_textLabel  = nullptr;
+    QLabel*          m_arrowLabel = nullptr;
+    FlagPopupWidget* m_popup      = nullptr;
+    bool             m_hasIssues  = false;
 };
