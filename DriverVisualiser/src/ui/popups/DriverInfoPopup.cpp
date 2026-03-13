@@ -3,6 +3,7 @@
 #include "DriverStatusFormatter.h"
 #include "DriverDateFormatter.h"
 #include "SystemInfoCollector.h"
+#include "AppTheme.h"
 
 #include <QApplication>
 #include <QScreen>
@@ -31,13 +32,13 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
     setMaximumHeight(480);
     
     // Main popup styling (same as FlagPopupWidget)
-    setStyleSheet(
+    setStyleSheet(QString(
         "DriverInfoPopup {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #555555;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 6px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     // Main layout with scroll area
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -57,6 +58,7 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
         "QScrollArea > QWidget > QWidget {"
         "   background-color: transparent;"
         "}"
+        + AppTheme::scrollbarStyleSheet()
     );
     
     QWidget* contentWidget = new QWidget();
@@ -171,34 +173,35 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
     
     // === Bottom button bar ===
     QWidget* buttonBar = new QWidget();
-    buttonBar->setStyleSheet(
+    buttonBar->setStyleSheet(QString(
         "QWidget {"
-        "   background-color: #2b2b2b;"
+        "   background-color: %1;"
         "   border-bottom-left-radius: 5px;"
         "   border-bottom-right-radius: 5px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay));
     QHBoxLayout* buttonLayout = new QHBoxLayout(buttonBar);
     buttonLayout->setContentsMargins(12, 8, 12, 11);
     
     QPushButton* copyAllButton = new QPushButton("Copy All");
     copyAllButton->setFixedSize(100, 32);
-    copyAllButton->setStyleSheet(
+    copyAllButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #3498db;"
-        "   color: white;"
+        "   background-color: %1;"
+        "   color: %2;"
         "   border: none;"
         "   border-radius: 4px;"
         "   font-weight: bold;"
         "   font-size: 11px;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #2980b9;"
+        "   background-color: %3;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #1c5a85;"
+        "   background-color: %4;"
         "}"
-    );
+    ).arg(AppTheme::colors().accent, AppTheme::colors().textOnAccent,
+          AppTheme::colors().accentDark, AppTheme::colors().accentDarker));
     connect(copyAllButton, &QPushButton::clicked, [this, copyAllButton]() {
         QString fullReport = generateFullReport(m_driver, m_systemInfo);
         copyToClipboard(fullReport, copyAllButton);
@@ -213,13 +216,13 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
 QLabel* DriverInfoPopup::createSectionHeader(const QString& title)
 {
     QLabel* header = new QLabel(title);
-    header->setStyleSheet(
-        "color: #5dade2;"
+    header->setStyleSheet(QString(
+        "color: %1;"
         "font-weight: bold;"
         "font-size: 12px;"
         "padding-top: 6px;"
         "padding-bottom: 4px;"
-    );
+    ).arg(AppTheme::colors().accentText));
     return header;
 }
 
@@ -231,12 +234,12 @@ QWidget* DriverInfoPopup::createFieldRow(const QString& label, const QString& va
     layout->setSpacing(14);
     
     QLabel* labelWidget = new QLabel(label + ":");
-    labelWidget->setStyleSheet("color: #999; font-size: 11px;");
+    labelWidget->setStyleSheet(QString("color: %1; font-size: 11px;").arg(AppTheme::colors().textLabel));
     labelWidget->setFixedWidth(125);
     layout->addWidget(labelWidget);
     
     QLabel* valueWidget = new QLabel(value);
-    valueWidget->setStyleSheet("color: #eee; font-size: 11px;");
+    valueWidget->setStyleSheet(QString("color: %1; font-size: 11px;").arg(AppTheme::colors().textValue));
     valueWidget->setWordWrap(true);
     layout->addWidget(valueWidget, 1);
     
@@ -252,18 +255,18 @@ QWidget* DriverInfoPopup::createCopyableFieldRow(const QString& label, const QSt
     
     // Label
     QLabel* labelWidget = new QLabel(label + ":");
-    labelWidget->setStyleSheet("color: #999; font-size: 11px;");
+    labelWidget->setStyleSheet(QString("color: %1; font-size: 11px;").arg(AppTheme::colors().textLabel));
     mainLayout->addWidget(labelWidget);
     
     // Container with value + copy button
     QWidget* container = new QWidget();
-    container->setStyleSheet(
+    container->setStyleSheet(QString(
         "QWidget {"
-        "   background-color: #1e1e1e;"
-        "   border: 1px solid #3a3a3a;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 5px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgCodeBlock, AppTheme::colors().borderCodeBlock));
     
     QHBoxLayout* containerLayout = new QHBoxLayout(container);
     containerLayout->setContentsMargins(10, 7, 10, 7);
@@ -271,13 +274,13 @@ QWidget* DriverInfoPopup::createCopyableFieldRow(const QString& label, const QSt
     
     // Value text (with elision for very long strings)
     QLabel* valueWidget = new QLabel(value);
-    valueWidget->setStyleSheet(
-        "color: #ddd;"
+    valueWidget->setStyleSheet(QString(
+        "color: %1;"
         "font-size: 10px;"
         "font-family: 'Consolas', 'Courier New', monospace;"
         "background: transparent;"
         "border: none;"
-    );
+    ).arg(AppTheme::colors().textCode));
     valueWidget->setWordWrap(false);
     valueWidget->setTextInteractionFlags(Qt::TextSelectableByMouse);
     containerLayout->addWidget(valueWidget, 1);
@@ -285,22 +288,23 @@ QWidget* DriverInfoPopup::createCopyableFieldRow(const QString& label, const QSt
     // Copy button
     QPushButton* copyButton = new QPushButton("⎘");
     copyButton->setFixedSize(24, 24);
-    copyButton->setStyleSheet(
+    copyButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #3498db;"
-        "   color: white;"
+        "   background-color: %1;"
+        "   color: %2;"
         "   border: none;"
         "   border-radius: 3px;"
         "   font-size: 14px;"
         "   font-weight: bold;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #2980b9;"
+        "   background-color: %3;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #1c5a85;"
+        "   background-color: %4;"
         "}"
-    );
+    ).arg(AppTheme::colors().accent, AppTheme::colors().textOnAccent,
+          AppTheme::colors().accentDark, AppTheme::colors().accentDarker));
     copyButton->setCursor(Qt::PointingHandCursor);
     copyButton->setToolTip("Copy to clipboard");
     
@@ -323,36 +327,37 @@ void DriverInfoPopup::copyToClipboard(const QString& text, QPushButton* button)
     // Visual feedback
     QString originalText = button->text();
     button->setText("✓");
-    button->setStyleSheet(
+    button->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #27ae60;"
-        "   color: white;"
+        "   background-color: %1;"
+        "   color: %2;"
         "   border: none;"
         "   border-radius: 3px;"
         "   font-size: 14px;"
         "   font-weight: bold;"
         "}"
-    );
+    ).arg(AppTheme::colors().healthy, AppTheme::colors().textOnAccent));
     
     // Reset after 1 second
     QTimer::singleShot(1000, [button, originalText]() {
         button->setText(originalText);
-        button->setStyleSheet(
+        button->setStyleSheet(QString(
             "QPushButton {"
-            "   background-color: #3498db;"
-            "   color: white;"
+            "   background-color: %1;"
+            "   color: %2;"
             "   border: none;"
             "   border-radius: 3px;"
             "   font-size: 14px;"
             "   font-weight: bold;"
             "}"
             "QPushButton:hover {"
-            "   background-color: #2980b9;"
+            "   background-color: %3;"
             "}"
             "QPushButton:pressed {"
-            "   background-color: #1c5a85;"
+            "   background-color: %4;"
             "}"
-        );
+        ).arg(AppTheme::colors().accent, AppTheme::colors().textOnAccent,
+              AppTheme::colors().accentDark, AppTheme::colors().accentDarker));
     });
 }
 

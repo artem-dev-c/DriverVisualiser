@@ -1,4 +1,5 @@
 #include "ReportNotification.h"
+#include "AppTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -62,13 +63,13 @@ void ReportNotification::setupUi()
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     
     // Main styling (matching DriverInfoPopup)
-    setStyleSheet(
+    setStyleSheet(QString(
         "ReportNotification {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #555555;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 8px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(16, 12, 16, 12);
@@ -81,10 +82,10 @@ void ReportNotification::setupUi()
     titleFont.setBold(true);
     m_titleLabel->setFont(titleFont);
     m_titleLabel->setStyleSheet(
-        "color: #5dade2;"
+        QString("color: %1;"
         "background: transparent;"
         "border: none;"
-    );
+    ).arg(AppTheme::colors().accentText));
     mainLayout->addWidget(m_titleLabel);
     
     // === File path ===
@@ -99,10 +100,10 @@ void ReportNotification::setupUi()
     fileFont.setBold(true);
     fileLabel->setFont(fileFont);
     fileLabel->setStyleSheet(
-        "color: #cccccc;"
+        QString("color: %1;"
         "background: transparent;"
         "border: none;"
-    );
+    ).arg(AppTheme::colors().textPrimary));
     mainLayout->addWidget(fileLabel);
     
     // Show folder path below
@@ -111,10 +112,10 @@ void ReportNotification::setupUi()
     pathFont.setPointSize(8);
     m_pathLabel->setFont(pathFont);
     m_pathLabel->setStyleSheet(
-        "color: #888888;"
+        QString("color: %1;"
         "background: transparent;"
         "border: none;"
-    );
+    ).arg(AppTheme::colors().textSecondary));
     m_pathLabel->setWordWrap(true);
     mainLayout->addWidget(m_pathLabel);
     
@@ -128,10 +129,10 @@ void ReportNotification::setupUi()
     if (!m_isHtml) {
         m_copyButton = new QPushButton("Copy to Clipboard");
         m_copyButton->setFixedHeight(28);
-        m_copyButton->setStyleSheet(
+        m_copyButton->setStyleSheet(QString(
             "QPushButton {"
-            "   background-color: #3498db;"
-            "   color: white;"
+            "   background-color: %1;"
+            "   color: %2;"
             "   border: none;"
             "   border-radius: 4px;"
             "   font-size: 10px;"
@@ -139,12 +140,13 @@ void ReportNotification::setupUi()
             "   padding: 6px 12px;"
             "}"
             "QPushButton:hover {"
-            "   background-color: #2980b9;"
+            "   background-color: %3;"
             "}"
             "QPushButton:pressed {"
-            "   background-color: #1c5a85;"
+            "   background-color: %4;"
             "}"
-        );
+        ).arg(AppTheme::colors().accent, AppTheme::colors().textOnAccent,
+              AppTheme::colors().accentDark, AppTheme::colors().accentDarker));
         connect(m_copyButton, &QPushButton::clicked, this, &ReportNotification::copyToClipboard);
         buttonLayout->addWidget(m_copyButton);
     }
@@ -152,10 +154,10 @@ void ReportNotification::setupUi()
     // Open Folder button
     m_folderButton = new QPushButton("Open Folder");
     m_folderButton->setFixedHeight(28);
-    m_folderButton->setStyleSheet(
+    m_folderButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #34495e;"
-        "   color: white;"
+        "   background-color: %1;"
+        "   color: %2;"
         "   border: none;"
         "   border-radius: 4px;"
         "   font-size: 10px;"
@@ -163,12 +165,13 @@ void ReportNotification::setupUi()
         "   padding: 6px 12px;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #2c3e50;"
+        "   background-color: %3;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #1a252f;"
+        "   background-color: %4;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
+          AppTheme::colors().bgHover, AppTheme::colors().bgBase));
     connect(m_folderButton, &QPushButton::clicked, this, &ReportNotification::openFolder);
     buttonLayout->addWidget(m_folderButton);
     
@@ -250,7 +253,7 @@ void ReportNotification::copyToClipboard()
     m_copyButton->setText("✓ Copied!");
     m_copyButton->setStyleSheet(
         "QPushButton {"
-        "   background-color: #27ae60;"
+        "   background-color: %1;"
         "   color: white;"
         "   border: none;"
         "   border-radius: 4px;"
@@ -264,10 +267,10 @@ void ReportNotification::copyToClipboard()
     QTimer::singleShot(1000, this, [this]() {
         if (m_copyButton) {
             m_copyButton->setText("Copy to Clipboard");
-            m_copyButton->setStyleSheet(
+            m_copyButton->setStyleSheet(QString(
                 "QPushButton {"
-                "   background-color: #3498db;"
-                "   color: white;"
+                "   background-color: %1;"
+                "   color: %2;"
                 "   border: none;"
                 "   border-radius: 4px;"
                 "   font-size: 10px;"
@@ -275,12 +278,13 @@ void ReportNotification::copyToClipboard()
                 "   padding: 6px 12px;"
                 "}"
                 "QPushButton:hover {"
-                "   background-color: #2980b9;"
+                "   background-color: %3;"
                 "}"
                 "QPushButton:pressed {"
-                "   background-color: #1c5a85;"
+                "   background-color: %4;"
                 "}"
-            );
+            ).arg(AppTheme::colors().accent, AppTheme::colors().textOnAccent,
+                  AppTheme::colors().accentDark, AppTheme::colors().accentDarker));
         }
     });
 }

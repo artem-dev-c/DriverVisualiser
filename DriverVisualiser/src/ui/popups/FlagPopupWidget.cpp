@@ -1,4 +1,5 @@
 #include "FlagPopupWidget.h"
+#include "AppTheme.h"
 #include <QApplication>
 #include <QScreen>
 #include <QFocusEvent>
@@ -22,13 +23,13 @@ void FlagPopupWidget::setupUi(const std::vector<HealthFlag>& sortedFlags)
     setMaximumHeight(400);
     
     // Main popup styling
-    setStyleSheet(
+    setStyleSheet(QString(
         "FlagPopupWidget {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #555555;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 6px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -148,10 +149,10 @@ bool FlagPopupWidget::event(QEvent* event)
 QString FlagPopupWidget::getOutlineColor(HealthFlagSeverity severity)
 {
     switch (severity) {
-        case HealthFlagSeverity::Critical: return "#e74c3c";  // Red
-        case HealthFlagSeverity::Warning:  return "#f39c12";  // Orange
-        case HealthFlagSeverity::Caution:  return "#f1c40f";  // Yellow
-        case HealthFlagSeverity::Info:     return "#3498db";  // Blue
+        case HealthFlagSeverity::Critical: return AppTheme::colors().critical;
+        case HealthFlagSeverity::Warning:  return AppTheme::colors().warning;
+        case HealthFlagSeverity::Caution:  return AppTheme::colors().caution;
+        case HealthFlagSeverity::Info:     return AppTheme::colors().accent;
         default:                           return "#95a5a6";  // Gray
     }
 }
@@ -162,18 +163,20 @@ QString FlagPopupWidget::getBackgroundColor(HealthFlagSeverity severity)
         case HealthFlagSeverity::Critical: return "rgba(231, 76, 60, 0.2)";
         case HealthFlagSeverity::Warning:  return "rgba(243, 156, 18, 0.2)";
         case HealthFlagSeverity::Caution:  return "rgba(241, 196, 15, 0.2)";
-        case HealthFlagSeverity::Info:     return "rgba(52, 152, 219, 0.2)";
+        case HealthFlagSeverity::Info:     return AppTheme::isDark()
+            ? "rgba(93, 173, 226, 0.2)" : "rgba(41, 128, 185, 0.2)";
         default:                           return "rgba(149, 165, 166, 0.15)";
     }
 }
 
 QString FlagPopupWidget::getTextColor(HealthFlagSeverity severity)
 {
+    if (!AppTheme::isDark()) return getOutlineColor(severity);
     switch (severity) {
         case HealthFlagSeverity::Critical: return "#ff6b5b";  // Lighter red
         case HealthFlagSeverity::Warning:  return "#ffb347";  // Lighter orange
         case HealthFlagSeverity::Caution:  return "#ffe066";  // Lighter yellow
-        case HealthFlagSeverity::Info:     return "#5dade2";  // Lighter blue
+        case HealthFlagSeverity::Info:     return AppTheme::colors().accent;
         default:                           return "#bdc3c7";  // Light gray
     }
 }

@@ -31,6 +31,7 @@ private:
     void populateDriverList();
     void clearDriverList();
     void applyFilters();
+    void applyWindowTheme();
 
     /// Show/hide the loading overlay
     void showLoadingState(bool loading);

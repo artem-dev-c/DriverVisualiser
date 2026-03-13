@@ -1,5 +1,6 @@
 #include "IssueListWidget.h"
 #include "ClassNameMapper.h"
+#include "AppTheme.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -19,7 +20,7 @@ IssueListWidget::IssueListWidget(QWidget* parent)
     headerFont.setPointSize(13);
     headerFont.setBold(true);
     header->setFont(headerFont);
-    header->setStyleSheet("color: #cccccc; padding-bottom: 10px;");
+    header->setStyleSheet(QString("color: %1; padding-bottom: 10px;").arg(AppTheme::colors().textSecondary));
     outerLayout->addWidget(header);
 
     // === Scroll area ===
@@ -32,19 +33,7 @@ IssueListWidget::IssueListWidget(QWidget* parent)
     m_scrollArea->setStyleSheet(
         "QScrollArea { background: transparent; border: none; }"
         "QScrollArea > QWidget > QWidget { background: transparent; }"
-        "QScrollBar:vertical {"
-        "   background: #1e1e1e;"
-        "   width: 6px;"
-        "   border-radius: 3px;"
-        "}"
-        "QScrollBar::handle:vertical {"
-        "   background: #444;"
-        "   border-radius: 3px;"
-        "   min-height: 20px;"
-        "}"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
-        "   height: 0px;"
-        "}"
+        + AppTheme::scrollbarStyleSheet()
     );
 
     m_listContainer = new QWidget();
@@ -91,12 +80,12 @@ void IssueListWidget::clearIssues()
 QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
 {
     QWidget* row = new QWidget();
-    row->setStyleSheet(
+    row->setStyleSheet(QString(
         "QWidget {"
-        "   background-color: #252525;"
+        "   background-color: %1;"
         "   border-radius: 4px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgIssueRow));
 
     QHBoxLayout* layout = new QHBoxLayout(row);
     layout->setContentsMargins(10, 9, 10, 9);
@@ -107,7 +96,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     dot->setFixedWidth(12);
 
     if (issue.isUserDisabled) {
-        dot->setStyleSheet("color: #666666; font-size: 13px; background: transparent;");
+        dot->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;").arg(AppTheme::colors().textDisabled));
     } else {
         QString color = severityColor(issue.severity);
         dot->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;").arg(color));
@@ -125,9 +114,9 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     nameLabel->setFont(nameFont);
 
     if (issue.isUserDisabled) {
-        nameLabel->setStyleSheet("color: #666666; background: transparent;");
+        nameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textDisabled));
     } else {
-        nameLabel->setStyleSheet("color: #e0e0e0; background: transparent;");
+        nameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textPrimary));
     }
 
     nameLabel->setToolTip(displayName);  // Full name on hover if truncated
@@ -142,9 +131,9 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     descLabel->setFont(descFont);
 
     if (issue.isUserDisabled) {
-        descLabel->setStyleSheet("color: #555555; background: transparent;");
+        descLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
     } else {
-        descLabel->setStyleSheet("color: #aaaaaa; background: transparent;");
+        descLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textSecondary));
     }
 
     descLabel->setToolTip(descText);
@@ -162,25 +151,27 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
         badge->setFont(badgeFont);
 
         if (issue.isUserDisabled) {
-            badge->setStyleSheet(
+            badge->setStyleSheet(QString(
                 "QLabel {"
-                "   color: #555555;"
-                "   background-color: #2a2a2a;"
-                "   border: 1px solid #333;"
+                "   color: %1;"
+                "   background-color: %2;"
+                "   border: 1px solid %3;"
                 "   border-radius: 3px;"
                 "   padding: 1px 6px;"
                 "}"
-            );
+            ).arg(AppTheme::colors().textMuted, AppTheme::colors().bgCard, AppTheme::colors().borderNormal
+            ));
         } else {
-            badge->setStyleSheet(
+            badge->setStyleSheet(QString(
                 "QLabel {"
-                "   color: #5dade2;"
-                "   background-color: rgba(93, 173, 226, 0.1);"
-                "   border: 1px solid rgba(93, 173, 226, 0.3);"
+                "   color: %1;"
+                "   background-color: %2;"
+                "   border: 1px solid %3;"
                 "   border-radius: 3px;"
                 "   padding: 1px 6px;"
                 "}"
-            );
+            ).arg(AppTheme::colors().accentText, AppTheme::colors().accentBg, AppTheme::colors().accentBgBorder
+            ));
         }
         layout->addWidget(badge);
     }
@@ -196,7 +187,7 @@ QWidget* IssueListWidget::createNoIssuesRow()
     label->setFont(font);
     label->setStyleSheet(
         "QLabel {"
-        "   color: #27ae60;"
+        "   color: %1;"
         "   padding: 10px 4px;"
         "   background: transparent;"
         "}"
@@ -207,9 +198,9 @@ QWidget* IssueListWidget::createNoIssuesRow()
 QString IssueListWidget::severityColor(HealthFlagSeverity severity) const
 {
     switch (severity) {
-        case HealthFlagSeverity::Critical: return "#e74c3c";
-        case HealthFlagSeverity::Warning:  return "#f39c12";
-        case HealthFlagSeverity::Caution:  return "#f1c40f";
-        default:                           return "#888888";
+        case HealthFlagSeverity::Critical: return AppTheme::colors().critical;
+        case HealthFlagSeverity::Warning:  return AppTheme::colors().warning;
+        case HealthFlagSeverity::Caution:  return AppTheme::colors().caution;
+        default:                           return AppTheme::colors().textSecondary;
     }
 }

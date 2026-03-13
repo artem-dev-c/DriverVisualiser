@@ -6,6 +6,7 @@
 #include "FlagIndicatorWidget.h"
 #include "ErrorLogIndicatorWidget.h"
 #include "DriverInfoPopup.h"
+#include "AppTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -84,7 +85,7 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     nameFont.setPointSize(11);
     nameFont.setBold(true);
     m_nameLabel->setFont(nameFont);
-    m_nameLabel->setStyleSheet("color: #ffffff; background: transparent;");
+    m_nameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textPrimary));
     nameRow->addWidget(m_nameLabel);
 
     // Importance badge (replaces 3-square indicator)
@@ -122,20 +123,20 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     // Separator dots between metadata items
     auto makeSep = []() -> QLabel* {
         QLabel* sep = new QLabel("  ·  ");
-        sep->setStyleSheet("color: #4a4a4a; background: transparent;");
+        sep->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textSeparator));
         return sep;
     };
 
     // Version
     metaRow->addWidget(makeSep());
     m_versionLabel = new QLabel(DriverVersionFormatter::versionToString(driver.version));
-    m_versionLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    m_versionLabel->setStyleSheet(QString("color: %1; background: transparent; font-size: 9pt;").arg(AppTheme::colors().textSecondary));
     metaRow->addWidget(m_versionLabel);
 
     // Manufacturer
     metaRow->addWidget(makeSep());
     m_manufacturerLabel = new QLabel(QString::fromStdWString(driver.manufacturer));
-    m_manufacturerLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    m_manufacturerLabel->setStyleSheet(QString("color: %1; background: transparent; font-size: 9pt;").arg(AppTheme::colors().textSecondary));
     metaRow->addWidget(m_manufacturerLabel);
 
     // Driver date
@@ -144,13 +145,13 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
         : "Unknown";
     metaRow->addWidget(makeSep());
     m_driverDateLabel = new QLabel("Driver: " + driverDateText);
-    m_driverDateLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    m_driverDateLabel->setStyleSheet(QString("color: %1; background: transparent; font-size: 9pt;").arg(AppTheme::colors().textSecondary));
     metaRow->addWidget(m_driverDateLabel);
 
     // Install date
     metaRow->addWidget(makeSep());
     m_installDateLabel = new QLabel("Installed: " + DriverDateFormatter::dateToString(driver.installDate));
-    m_installDateLabel->setStyleSheet("color: #909090; background: transparent; font-size: 9pt;");
+    m_installDateLabel->setStyleSheet(QString("color: %1; background: transparent; font-size: 9pt;").arg(AppTheme::colors().textSecondary));
     metaRow->addWidget(m_installDateLabel);
 
     metaRow->addStretch();
@@ -177,16 +178,16 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
     QPushButton* infoButton = new QPushButton("ⓘ");
     infoButton->setFixedSize(22, 22);
     infoButton->setFlat(true);
-    infoButton->setStyleSheet(
+    infoButton->setStyleSheet(QString(
         "QPushButton {"
-        "   color: #555555;"
+        "   color: %1;"
         "   font-size: 15px;"
         "   border: none;"
         "   background: transparent;"
         "}"
-        "QPushButton:hover { color: #5dade2; }"
-        "QPushButton:pressed { color: #2980b9; }"
-    );
+        "QPushButton:hover { color: %2; }"
+        "QPushButton:pressed { color: %3; }"
+    ).arg(AppTheme::colors().textMuted, AppTheme::colors().accent, AppTheme::colors().accentDark));
     infoButton->setCursor(Qt::PointingHandCursor);
     infoButton->setToolTip("View technical details");
     connect(infoButton, &QPushButton::clicked, [this, infoButton]() {
@@ -222,9 +223,9 @@ void DriverCardWidget::applyCardStyle(const DriverInfo& driver)
                     driver.status == DriverStatus::Error;
 
     if (!hasIssue) {
-        borderColor = "#2a2a2a";
-    } else if (accent == "#f39c12") {
-        borderColor = "rgba(243, 156, 18, 0.55)";   // orange at ~55% — was 100%
+        borderColor = AppTheme::colors().borderSubtle;
+    } else if (accent == AppTheme::colors().warning) {
+        borderColor = AppTheme::colors().warningBorder;   // orange at ~55% — was 100%
     } else {
         borderColor = accent;
     }
@@ -300,13 +301,13 @@ QWidget* DriverCardWidget::createHealthBlock(int score)
         "QProgressBar {"
         "   border: none;"
         "   border-radius: 3px;"
-        "   background-color: #1e1e1e;"
+        "   background-color: %1;"
         "}"
         "QProgressBar::chunk {"
-        "   background-color: %1;"
+        "   background-color: %2;"
         "   border-radius: 3px;"    // fully rounded — matches half of 6px height
         "}"
-    ).arg(healthColor(score)));
+    ).arg(AppTheme::colors().progressTrack, healthColor(score)));
     layout->addWidget(m_healthBar, 0, Qt::AlignCenter);
 
     // "Health" sub-label
@@ -315,7 +316,7 @@ QWidget* DriverCardWidget::createHealthBlock(int score)
     subFont.setPointSize(8);
     subLabel->setFont(subFont);
     subLabel->setAlignment(Qt::AlignCenter);
-    subLabel->setStyleSheet("color: #555555; background: transparent;");
+    subLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
     layout->addWidget(subLabel);
 
     return block;
@@ -343,31 +344,31 @@ QString DriverCardWidget::getAccentColor(const DriverInfo& driver) const
 
     if (driver.status == DriverStatus::Error) hasCritical = true;
 
-    if (hasCritical) return "#e74c3c";
-    if (hasWarning)  return "#f39c12";
-    if (driver.healthScore < 80) return "#f1c40f";
+    if (hasCritical) return AppTheme::colors().critical;
+    if (hasWarning)  return AppTheme::colors().warning;
+    if (driver.healthScore < 80) return AppTheme::colors().caution;
 
-    return "#2d2d2d";   // Healthy: nearly invisible, just structural
+    return AppTheme::colors().borderSubtle;   // Healthy: nearly invisible, just structural
 }
 
 QString DriverCardWidget::getCardBackground(const DriverInfo& driver) const
 {
     QString accent = getAccentColor(driver);
 
-    if (accent == "#e74c3c") return "rgba(231, 76, 60, 0.05)";
-    if (accent == "#f39c12") return "rgba(243, 156, 18, 0.03)";   // reduced from 0.04
-    if (accent == "#f1c40f") return "rgba(241, 196, 15, 0.03)";
+    if (accent == AppTheme::colors().critical) return "rgba(231, 76, 60, 0.05)";
+    if (accent == AppTheme::colors().warning)  return "rgba(243, 156, 18, 0.03)";   // reduced from 0.04
+    if (accent == AppTheme::colors().caution)  return "rgba(241, 196, 15, 0.03)";
 
-    return "#242424";   // Standard healthy card background
+    return AppTheme::colors().bgCard;   // Standard healthy card background
 }
 
 QString DriverCardWidget::importanceColor(DriverImportance importance)
 {
     switch (importance) {
-        case DriverImportance::Critical:  return "#e74c3c";
-        case DriverImportance::Important: return "#f39c12";
-        case DriverImportance::Optional:  return "#27ae60";
-        default:                          return "#5dade2";   // Virtual / unknown → blue
+        case DriverImportance::Critical:  return AppTheme::colors().critical;
+        case DriverImportance::Important: return AppTheme::colors().warning;
+        case DriverImportance::Optional:  return AppTheme::colors().healthy;
+        default:                          return AppTheme::colors().accent;   // Virtual / unknown → blue
     }
 }
 
@@ -383,18 +384,18 @@ QString DriverCardWidget::importanceLabel(DriverImportance importance)
 
 QString DriverCardWidget::healthColor(int score)
 {
-    if (score >= 80) return "#27ae60";
-    if (score >= 50) return "#f39c12";
-    return "#e74c3c";
+    if (score >= 80) return AppTheme::colors().healthy;
+    if (score >= 50) return AppTheme::colors().warning;
+    return AppTheme::colors().critical;
 }
 
 QString DriverCardWidget::statusColor(DriverStatus status)
 {
     switch (status) {
-        case DriverStatus::Ok:         return "#27ae60";
-        case DriverStatus::Error:      return "#e74c3c";
-        case DriverStatus::NotStarted: return "#f39c12";
-        case DriverStatus::Disabled:   return "#888888";
-        default:                       return "#555555";
+        case DriverStatus::Ok:         return AppTheme::colors().healthy;
+        case DriverStatus::Error:      return AppTheme::colors().critical;
+        case DriverStatus::NotStarted: return AppTheme::colors().warning;
+        case DriverStatus::Disabled:   return AppTheme::colors().textDisabled;
+        default:                       return AppTheme::colors().textMuted;
     }
 }

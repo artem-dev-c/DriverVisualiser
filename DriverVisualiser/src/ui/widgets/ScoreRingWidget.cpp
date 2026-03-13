@@ -1,4 +1,5 @@
 #include "ScoreRingWidget.h"
+#include "AppTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -40,7 +41,7 @@ void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
     QRectF ringRect(margin, margin, w - margin * 2, h - margin * 2);
 
     // === Background ring (dark track) ===
-    QPen trackPen(QColor("#2d2d2d"), ringThickness, Qt::SolidLine, Qt::FlatCap);
+    QPen trackPen(QColor(AppTheme::colors().progressTrack), ringThickness, Qt::SolidLine, Qt::FlatCap);
     painter.setPen(trackPen);
     painter.drawEllipse(ringRect);
 
@@ -62,7 +63,7 @@ void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
     scoreFont.setPointSize(32);
     scoreFont.setBold(true);
     painter.setFont(scoreFont);
-    painter.setPen(QColor("#ffffff"));
+    painter.setPen(QColor(AppTheme::colors().textPrimary));
 
     // Draw score percentage centered
     QString scoreText = QString::number(m_score) + "%";
@@ -74,7 +75,7 @@ void ScoreRingWidget::paintEvent(QPaintEvent* /*event*/)
     labelFont.setPointSize(11);
     labelFont.setBold(false);
     painter.setFont(labelFont);
-    painter.setPen(QColor("#888888"));
+    painter.setPen(QColor(AppTheme::colors().textSecondary));
 
     QRectF labelRect(0, h / 2 + 14, w, h / 2);
     painter.drawText(labelRect, Qt::AlignHCenter | Qt::AlignTop, "Health");
@@ -84,10 +85,10 @@ QString ScoreRingWidget::scoreColor(int score) const
 {
     // Match DriverCardWidget::getHealthColor thresholds exactly
     if (score >= 80) {
-        return "#27ae60";  // Green
+        return AppTheme::colors().healthy;
     } else if (score >= 50) {
-        return "#f39c12";  // Orange
+        return AppTheme::colors().warning;
     } else {
-        return "#e74c3c";  // Red
+        return AppTheme::colors().critical;
     }
 }

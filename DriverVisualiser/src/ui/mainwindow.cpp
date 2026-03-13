@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "AppTheme.h"
 #include "CategoryGrouper.h"
 #include "CategoryProcessor.h"
 #include "DriverScanner.h"
@@ -16,6 +17,7 @@
 
 #include <QScreen>
 #include <QGuiApplication>
+#include <QStyleHints>
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -37,6 +39,17 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    // ── Theme ────────────────────────────────────────────────────────────────
+    AppTheme::init();
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+            this, [this](Qt::ColorScheme) {
+        AppTheme::init();
+        applyWindowTheme();
+        if (!m_scanning && !m_allDrivers.empty())
+            populateDriverList();
+    });
+    applyWindowTheme();
 
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
@@ -80,6 +93,24 @@ MainWindow::~MainWindow()
         m_scanWatcher->waitForFinished();
     }
     delete ui;
+}
+
+// ============================================================================
+// Theme
+// ============================================================================
+
+void MainWindow::applyWindowTheme()
+{
+    const auto& c = AppTheme::colors();
+    ui->scrollArea->setStyleSheet(QString(
+        "QScrollArea { background-color: %1; border: none; }"
+    ).arg(c.bgBase) + AppTheme::scrollbarStyleSheet());
+    ui->scrollArea->viewport()->setStyleSheet(
+        QString("background-color: %1;").arg(c.bgBase));
+    ui->scrollAreaContents->setStyleSheet(
+        QString("QWidget { background-color: %1; }").arg(c.bgBase));
+    centralWidget()->setStyleSheet(
+        QString("QWidget { background-color: %1; }").arg(c.bgBase));
 }
 
 // ============================================================================
@@ -143,13 +174,13 @@ void MainWindow::showLoadingState(bool loading)
         // Vertical centering: use a full-height container with stretch above and below
         m_loadingWidget = new QWidget();
         m_loadingWidget->setObjectName("loadingCard");
-        m_loadingWidget->setStyleSheet(
+        m_loadingWidget->setStyleSheet(QString(
             "QWidget#loadingCard {"
-            "   background-color: #2b2b2b;"
-            "   border: 1px solid #3d3d3d;"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
             "   border-radius: 16px;"
             "}"
-        );
+        ).arg(AppTheme::colors().bgElevated, AppTheme::colors().borderNormal));
         m_loadingWidget->setFixedSize(520, 200);
 
         QVBoxLayout* cardLayout = new QVBoxLayout(m_loadingWidget);
@@ -163,7 +194,7 @@ void MainWindow::showLoadingState(bool loading)
         f.setPointSize(16);
         f.setBold(true);
         m_loadingLabel->setFont(f);
-        m_loadingLabel->setStyleSheet("color: #e0e0e0; background: transparent; border: none;");
+        m_loadingLabel->setStyleSheet(QString("color: %1; background: transparent; border: none;").arg(AppTheme::colors().textPrimary));
         m_loadingLabel->setAlignment(Qt::AlignCenter);
         cardLayout->addWidget(m_loadingLabel);
 
@@ -171,7 +202,7 @@ void MainWindow::showLoadingState(bool loading)
         QFont sf = subLabel->font();
         sf.setPointSize(10);
         subLabel->setFont(sf);
-        subLabel->setStyleSheet("color: #666666; background: transparent; border: none;");
+        subLabel->setStyleSheet(QString("color: %1; background: transparent; border: none;").arg(AppTheme::colors().textSecondary));
         subLabel->setAlignment(Qt::AlignCenter);
         cardLayout->addWidget(subLabel);
 
@@ -180,17 +211,17 @@ void MainWindow::showLoadingState(bool loading)
         bar->setRange(0, 0);
         bar->setFixedHeight(4);
         bar->setTextVisible(false);
-        bar->setStyleSheet(
+        bar->setStyleSheet(QString(
             "QProgressBar {"
-            "   background-color: #3a3a3a;"
+            "   background-color: %1;"
             "   border: none;"
             "   border-radius: 2px;"
             "}"
             "QProgressBar::chunk {"
-            "   background-color: #5dade2;"
+            "   background-color: %2;"
             "   border-radius: 2px;"
             "}"
-        );
+        ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().accent));
         cardLayout->addWidget(bar);
 
         // Animate dots
@@ -428,9 +459,9 @@ void MainWindow::applyFilters()
 
     if (filtered.empty()) {
         QLabel* noResults = new QLabel("No drivers match your search/filter criteria");
-        noResults->setStyleSheet(
-            "QLabel { color: #888888; font-size: 14px; padding: 40px; }"
-        );
+        noResults->setStyleSheet(QString(
+            "QLabel { color: %1; font-size: 14px; padding: 40px; }"
+        ).arg(AppTheme::colors().textSecondary));
         noResults->setAlignment(Qt::AlignCenter);
         m_contentLayout->addWidget(noResults);
     } else {

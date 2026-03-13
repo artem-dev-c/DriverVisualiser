@@ -1,4 +1,5 @@
 #include "ErrorLogIndicatorWidget.h"
+#include "AppTheme.h"
 #include "ErrorLogPopupWidget.h"
 #include <QHBoxLayout>
 #include <QMouseEvent>
@@ -57,16 +58,16 @@ void ErrorLogIndicatorWidget::updateAppearance()
     if (!m_hasLogs) {
         // Neutral "no logs" — subdued, mirrors FlagIndicatorWidget healthy state
         m_textLabel->setText("No logs");
-        m_textLabel->setStyleSheet("color: #484848; background: transparent;");
+        m_textLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
         m_arrowLabel->setVisible(false);
 
-        setStyleSheet(
+        setStyleSheet(QString(
             "ErrorLogIndicatorWidget {"
-            "   border: 1px solid #2e2e2e;"
+            "   border: 1px solid %1;"
             "   border-radius: 8px;"
             "   background-color: transparent;"
             "}"
-        );
+        ).arg(AppTheme::colors().borderSubtle));
         return;
     }
 
@@ -181,10 +182,10 @@ int ErrorLogIndicatorWidget::countWarnings() const
 
 QString ErrorLogIndicatorWidget::outlineColor(int errorCount)
 {
-    if (errorCount >= 5) return "#e74c3c";
-    if (errorCount >= 2) return "rgba(243, 156, 18, 0.75)";   // softened orange
-    if (errorCount >= 1) return "#f1c40f";
-    return "#5dade2";
+    if (errorCount >= 5) return AppTheme::colors().critical;
+    if (errorCount >= 2) return AppTheme::colors().warningOutline;
+    if (errorCount >= 1) return AppTheme::colors().caution;
+    return AppTheme::colors().accent;
 }
 
 QString ErrorLogIndicatorWidget::bgColor(int errorCount)
@@ -192,5 +193,5 @@ QString ErrorLogIndicatorWidget::bgColor(int errorCount)
     if (errorCount >= 5) return "rgba(231, 76, 60, 0.12)";
     if (errorCount >= 2) return "rgba(243, 156, 18, 0.08)";   // reduced from 0.12
     if (errorCount >= 1) return "rgba(241, 196, 15, 0.10)";
-    return "rgba(93, 173, 226, 0.10)";
+    return AppTheme::isDark() ? "rgba(93, 173, 226, 0.10)" : "rgba(41, 128, 185, 0.10)";
 }

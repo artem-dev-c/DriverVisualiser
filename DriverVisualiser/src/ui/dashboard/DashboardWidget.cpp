@@ -1,4 +1,5 @@
 #include "DashboardWidget.h"
+#include "AppTheme.h"
 #include "ScoreRingWidget.h"
 #include "IssueListWidget.h"
 #include "SystemHealthSummary.h"
@@ -23,13 +24,13 @@ void DashboardWidget::setupUi()
 {
     // Outer card styling - matches CategorySectionWidget header style
     setAutoFillBackground(true);
-    setStyleSheet(
+    setStyleSheet(QString(
         "DashboardWidget {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #3d3d3d;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 16px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgElevated, AppTheme::colors().borderNormal));
 
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(20, 18, 20, 18);
@@ -41,7 +42,7 @@ void DashboardWidget::setupUi()
     // Vertical divider
     QFrame* divider1 = new QFrame();
     divider1->setFrameShape(QFrame::VLine);
-    divider1->setStyleSheet("color: #3d3d3d; background-color: #3d3d3d;");
+    divider1->setStyleSheet(QString("color: %1; background-color: %1;").arg(AppTheme::colors().divider));
     divider1->setFixedWidth(1);
     mainLayout->addSpacing(20);
     mainLayout->addWidget(divider1);
@@ -53,7 +54,7 @@ void DashboardWidget::setupUi()
     // Vertical divider
     QFrame* divider2 = new QFrame();
     divider2->setFrameShape(QFrame::VLine);
-    divider2->setStyleSheet("color: #3d3d3d; background-color: #3d3d3d;");
+    divider2->setStyleSheet(QString("color: %1; background-color: %1;").arg(AppTheme::colors().divider));
     divider2->setFixedWidth(1);
     mainLayout->addSpacing(20);
     mainLayout->addWidget(divider2);
@@ -99,9 +100,9 @@ QWidget* DashboardWidget::buildScoreColumn()
         return label;
     };
 
-    m_criticalCountLabel = makeCountLabel("— Critical", "#e74c3c");
-    m_warningCountLabel  = makeCountLabel("— Warnings", "#f39c12");
-    m_healthyCountLabel  = makeCountLabel("— Healthy",  "#27ae60");
+    m_criticalCountLabel = makeCountLabel("— Critical", AppTheme::colors().critical);
+    m_warningCountLabel  = makeCountLabel("— Warnings", AppTheme::colors().warning);
+    m_healthyCountLabel  = makeCountLabel("— Healthy",  AppTheme::colors().healthy);
 
     layout->addWidget(m_criticalCountLabel);
     layout->addWidget(m_warningCountLabel);
@@ -129,6 +130,7 @@ QWidget* DashboardWidget::buildIssueColumn()
 
 QWidget* DashboardWidget::buildControlColumn()
 {
+    const auto& c = AppTheme::colors();
     QWidget* col = new QWidget();
     col->setStyleSheet("background: transparent;");
     col->setFixedWidth(200);
@@ -143,7 +145,7 @@ QWidget* DashboardWidget::buildControlColumn()
         QFont f = label->font();
         f.setPointSize(10);
         label->setFont(f);
-        label->setStyleSheet("color: #bbbbbb; background: transparent;");
+        label->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textSecondary));
         label->setWordWrap(true);
         return label;
     };
@@ -159,7 +161,7 @@ QWidget* DashboardWidget::buildControlColumn()
     // Divider
     QFrame* divider = new QFrame();
     divider->setFrameShape(QFrame::HLine);
-    divider->setStyleSheet("color: #3d3d3d; background-color: #3d3d3d;");
+    divider->setStyleSheet(QString("color: %1; background-color: %1;").arg(AppTheme::colors().divider));
     divider->setFixedHeight(1);
     layout->addSpacing(4);
     layout->addWidget(divider);
@@ -176,7 +178,7 @@ QWidget* DashboardWidget::buildControlColumn()
     QFont logLabelFont = logLabel->font();
     logLabelFont.setPointSize(10);
     logLabel->setFont(logLabelFont);
-    logLabel->setStyleSheet("color: #888888; background: transparent;");
+    logLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textSecondary));
     layout->addWidget(logLabel);
 
     QHBoxLayout* toggleLayout = new QHBoxLayout();
@@ -217,7 +219,7 @@ QWidget* DashboardWidget::buildControlColumn()
     noteFont.setPointSize(10);
     noteFont.setItalic(true);
     toggleNote->setFont(noteFont);
-    toggleNote->setStyleSheet("color: #555555; background: transparent;");
+    toggleNote->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
     layout->addWidget(toggleNote);
 
     layout->addSpacing(8);
@@ -225,25 +227,28 @@ QWidget* DashboardWidget::buildControlColumn()
     // === Rescan button ===
     m_rescanButton = new QPushButton("⟳  Scan Drivers");
     m_rescanButton->setFixedHeight(32);
-    m_rescanButton->setStyleSheet(
+    m_rescanButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #3a3a3a;"
-        "   color: #cccccc;"
-        "   border: 1px solid #555555;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 6px;"
         "   padding: 6px 12px;"
         "   font-size: 11px;"
         "   font-weight: bold;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #454545;"
-        "   border-color: #5dade2;"
-        "   color: #ffffff;"
+        "   background-color: %4;"
+        "   border-color: %5;"
+        "   color: %6;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #2a2a2a;"
+        "   background-color: %7;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
+          AppTheme::colors().borderStrong, AppTheme::colors().bgHover,
+          AppTheme::colors().accent, AppTheme::colors().textPrimary,
+          AppTheme::colors().bgBase));
     m_rescanButton->setCursor(Qt::PointingHandCursor);
     connect(m_rescanButton, &QPushButton::clicked, this, &DashboardWidget::scanRequested);
     layout->addWidget(m_rescanButton);
@@ -253,48 +258,53 @@ QWidget* DashboardWidget::buildControlColumn()
     // === Generate Report button with format menu ===
     m_reportButton = new QPushButton("📄  Generate Report");
     m_reportButton->setFixedHeight(32);
-    m_reportButton->setStyleSheet(
+    m_reportButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #2d4356;"
-        "   color: #5dade2;"
-        "   border: 1px solid #3d5a6e;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 6px;"
         "   padding: 6px 12px;"
         "   font-size: 11px;"
         "   font-weight: bold;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #3a5670;"
-        "   border-color: #5dade2;"
-        "   color: #ffffff;"
+        "   background-color: %4;"
+        "   border-color: %5;"
+        "   color: %6;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #1e2d3a;"
+        "   background-color: %7;"
         "}"
         "QPushButton::menu-indicator {"
         "   width: 0px;"  // Hide default dropdown arrow
         "}"
-    );
+    ).arg(AppTheme::colors().bgButtonActive, AppTheme::colors().accentText,
+          AppTheme::colors().borderActive, AppTheme::colors().accentBg,
+          AppTheme::colors().accent, AppTheme::colors().textPrimary,
+          AppTheme::colors().bgBase));
     m_reportButton->setCursor(Qt::PointingHandCursor);
     
     // Create format menu
     QMenu* reportMenu = new QMenu(m_reportButton);
-    reportMenu->setStyleSheet(
+    reportMenu->setStyleSheet(QString(
         "QMenu {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #3d5a6e;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 4px;"
         "   padding: 4px;"
         "}"
         "QMenu::item {"
         "   padding: 6px 20px;"
-        "   color: #e0e0e0;"
+        "   color: %3;"
         "}"
         "QMenu::item:selected {"
-        "   background-color: #3a5670;"
-        "   color: #5dade2;"
+        "   background-color: %4;"
+        "   color: %5;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderActive,
+          AppTheme::colors().textPrimary, AppTheme::colors().accentBg,
+          AppTheme::colors().accentText));
     
     QAction* textAction = reportMenu->addAction("📄 Text Report (.txt)");
     QAction* htmlAction = reportMenu->addAction("🌐 Interactive HTML (.html)");
@@ -381,31 +391,36 @@ void DashboardWidget::updateSystemInfoLabels(const SystemInfo& sysInfo)
 void DashboardWidget::updateLogWindowButtons()
 {
     // Common inactive style
-    const QString inactiveStyle =
+    const QString inactiveStyle = QString(
         "QPushButton {"
-        "   background-color: #3a3a3a;"
-        "   color: #888888;"
-        "   border: 1px solid #4a4a4a;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 4px;"
         "   font-size: 10px;"
         "   padding: 2px 6px;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #454545;"
-        "   color: #cccccc;"
-        "}";
+        "   background-color: %4;"
+        "   color: %5;"
+        "}"
+    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textMuted,
+          AppTheme::colors().borderNormal, AppTheme::colors().bgHover,
+          AppTheme::colors().textSecondary);
 
     // Active style (selected day)
-    const QString activeStyle =
+    const QString activeStyle = QString(
         "QPushButton {"
-        "   background-color: #1a3a5c;"
-        "   color: #5dade2;"
-        "   border: 1px solid #5dade2;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 4px;"
         "   font-size: 10px;"
         "   font-weight: bold;"
         "   padding: 2px 6px;"
-        "}";
+        "}"
+    ).arg(AppTheme::colors().bgBase, AppTheme::colors().accentText,
+          AppTheme::colors().accent);
 
     m_log7Button->setStyleSheet( m_selectedLogDays == 7   ? activeStyle : inactiveStyle);
     m_log30Button->setStyleSheet(m_selectedLogDays == 30  ? activeStyle : inactiveStyle);

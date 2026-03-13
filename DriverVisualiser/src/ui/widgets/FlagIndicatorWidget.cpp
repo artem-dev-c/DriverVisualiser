@@ -1,4 +1,5 @@
 #include "FlagIndicatorWidget.h"
+#include "AppTheme.h"
 #include "FlagPopupWidget.h"
 #include <QHBoxLayout>
 #include <QMouseEvent>
@@ -68,16 +69,16 @@ void FlagIndicatorWidget::updateAppearance()
     if (!m_hasIssues) {
         // Healthy state — subdued, no emphasis
         m_textLabel->setText("No issues");
-        m_textLabel->setStyleSheet("color: #484848; background: transparent;");
+        m_textLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
         m_arrowLabel->setVisible(false);
 
-        setStyleSheet(
+        setStyleSheet(QString(
             "FlagIndicatorWidget {"
-            "   border: 1px solid #2e2e2e;"
+            "   border: 1px solid %1;"
             "   border-radius: 8px;"
             "   background-color: transparent;"
             "}"
-        );
+        ).arg(AppTheme::colors().borderSubtle));
         return;
     }
 
@@ -159,10 +160,10 @@ std::vector<HealthFlag> FlagIndicatorWidget::sortedBySeverity(const std::vector<
 QString FlagIndicatorWidget::outlineColor(HealthFlagSeverity severity)
 {
     switch (severity) {
-        case HealthFlagSeverity::Critical: return "#e74c3c";
-        case HealthFlagSeverity::Warning:  return "rgba(243, 156, 18, 0.75)";  // softened
-        case HealthFlagSeverity::Caution:  return "#f1c40f";
-        case HealthFlagSeverity::Info:     return "#5dade2";
+        case HealthFlagSeverity::Critical: return AppTheme::colors().critical;
+        case HealthFlagSeverity::Warning:  return AppTheme::colors().warningOutline;
+        case HealthFlagSeverity::Caution:  return AppTheme::colors().caution;
+        case HealthFlagSeverity::Info:     return AppTheme::colors().accent;
         default:                           return "#555555";
     }
 }
@@ -173,7 +174,7 @@ QString FlagIndicatorWidget::backgroundColor(HealthFlagSeverity severity)
         case HealthFlagSeverity::Critical: return "rgba(231, 76, 60, 0.12)";
         case HealthFlagSeverity::Warning:  return "rgba(243, 156, 18, 0.08)";  // reduced from 0.12
         case HealthFlagSeverity::Caution:  return "rgba(241, 196, 15, 0.10)";
-        case HealthFlagSeverity::Info:     return "rgba(93, 173, 226, 0.10)";
+        case HealthFlagSeverity::Info:     return AppTheme::isDark() ? "rgba(93, 173, 226, 0.10)" : "rgba(41, 128, 185, 0.10)";
         default:                           return "transparent";
     }
 }

@@ -12,4 +12,7 @@ public:
 private:
     /// Read a string value from registry
     static std::wstring readRegString(HKEY hKey, const std::wstring& valueName);
+
+    /// Read a DWORD value from registry (returns 0 on failure)
+    static DWORD readRegDword(HKEY hKey, const std::wstring& valueName);
 };

@@ -1,5 +1,6 @@
 #include "SystemInfoCollector.h"
 #include <vector>
+#include <string>
 
 SystemInfo SystemInfoCollector::collect()
 {
@@ -35,14 +36,34 @@ SystemInfo SystemInfoCollector::collect()
     );
     
     if (result == ERROR_SUCCESS) {
-        info.osName = readRegString(hKey, L"ProductName");
         info.displayVersion = readRegString(hKey, L"DisplayVersion");
-        info.buildNumber = readRegString(hKey, L"CurrentBuild");
-        
+        info.buildNumber    = readRegString(hKey, L"CurrentBuild");
+
         // UBR (Update Build Revision) - might not exist on older Windows
         std::wstring ubr = readRegString(hKey, L"UBR");
         info.ubr = ubr.empty() ? L"0" : ubr;
-        
+
+        // === Windows 11 detection ===
+        std::wstring productName = readRegString(hKey, L"ProductName");
+        if (!info.buildNumber.empty()) {
+            try {
+                int buildNum = std::stoi(info.buildNumber);
+                if (buildNum >= 22000) {
+                    // Replace "Windows 10" substring if present, otherwise
+                    // append a corrected name as fallback
+                    const std::wstring win10 = L"Windows 10";
+                    size_t pos = productName.find(win10);
+                    if (pos != std::wstring::npos)
+                        productName.replace(pos, win10.length(), L"Windows 11");
+                    else
+                        productName = L"Windows 11";
+                }
+            } catch (...) {
+                // stoi failed (malformed build string) — leave productName as-is
+            }
+        }
+        info.osName = productName;
+
         RegCloseKey(hKey);
     } else {
         info.osName = L"Unknown";
@@ -89,4 +110,25 @@ std::wstring SystemInfoCollector::readRegString(HKEY hKey, const std::wstring& v
     }
     
     return L"";
+}
+
+DWORD SystemInfoCollector::readRegDword(HKEY hKey, const std::wstring& valueName)
+{
+    DWORD value    = 0;
+    DWORD dataType = 0;
+    DWORD dataSize = sizeof(DWORD);
+
+    LONG result = RegQueryValueExW(
+        hKey,
+        valueName.c_str(),
+        nullptr,
+        &dataType,
+        reinterpret_cast<LPBYTE>(&value),
+        &dataSize
+    );
+
+    if (result != ERROR_SUCCESS || dataType != REG_DWORD)
+        return 0;
+
+    return value;
 }

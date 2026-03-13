@@ -1,4 +1,5 @@
 #include "FilterPopupWidget.h"
+#include "AppTheme.h"
 #include <QApplication>
 #include <QScreen>
 #include <QFocusEvent>
@@ -22,13 +23,13 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
     setMaximumHeight(500);  // Increased for scrolling
     
     // Popup styling - match FlagPopupWidget exactly
-    setStyleSheet(
+    setStyleSheet(QString(
         "FilterPopupWidget {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #555555;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 6px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     // Use scroll area for long manufacturer lists
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -101,23 +102,25 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
     // Clear All button
     QPushButton* clearAllBtn = new QPushButton("Clear All");
     clearAllBtn->setFixedHeight(32);
-    clearAllBtn->setStyleSheet(
+    clearAllBtn->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #3a3a3a;"
-        "   color: #cccccc;"
-        "   border: 1px solid #555;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 4px;"
         "   padding: 6px 12px;"
         "   font-size: 11px;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #454545;"
-        "   color: #ffffff;"
+        "   background-color: %4;"
+        "   color: %5;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #2a2a2a;"
+        "   background-color: %6;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
+          AppTheme::colors().borderStrong, AppTheme::colors().bgHover,
+          AppTheme::colors().textPrimary, AppTheme::colors().bgBase));
     connect(clearAllBtn, &QPushButton::clicked, this, [this]() {
         // Block signals
         m_criticalCheck->blockSignals(true);
@@ -162,23 +165,25 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
     // Select All button
     QPushButton* selectAllBtn = new QPushButton("Select All");
     selectAllBtn->setFixedHeight(32);
-    selectAllBtn->setStyleSheet(
+    selectAllBtn->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #3a3a3a;"
-        "   color: #cccccc;"
-        "   border: 1px solid #555;"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
         "   border-radius: 4px;"
         "   padding: 6px 12px;"
         "   font-size: 11px;"
         "}"
         "QPushButton:hover {"
-        "   background-color: #454545;"
-        "   color: #ffffff;"
+        "   background-color: %4;"
+        "   color: %5;"
         "}"
         "QPushButton:pressed {"
-        "   background-color: #2a2a2a;"
+        "   background-color: %6;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
+          AppTheme::colors().borderStrong, AppTheme::colors().bgHover,
+          AppTheme::colors().textPrimary, AppTheme::colors().bgBase));
     connect(selectAllBtn, &QPushButton::clicked, this, [this]() {
         // Block signals to prevent multiple filter updates
         m_criticalCheck->blockSignals(true);
@@ -248,13 +253,13 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
 QWidget* FilterPopupWidget::createSection(const QString& title)
 {
     QLabel* header = new QLabel(title);
-    header->setStyleSheet(
-        "color: #5dade2;"
+    header->setStyleSheet(QString(
+        "color: %1;"
         "font-weight: bold;"
         "font-size: 12px;"
         "padding-top: 4px;"
         "padding-bottom: 4px;"
-    );
+    ).arg(AppTheme::colors().accentText));
     return header;
 }
 
@@ -262,27 +267,29 @@ QCheckBox* FilterPopupWidget::createCheckbox(const QString& label, bool checked)
 {
     QCheckBox* check = new QCheckBox(label);
     check->setChecked(checked);
-    check->setStyleSheet(
+    check->setStyleSheet(QString(
         "QCheckBox {"
-        "   color: #cccccc;"
+        "   color: %1;"
         "   font-size: 11px;"
         "   spacing: 8px;"
         "}"
         "QCheckBox::indicator {"
         "   width: 16px;"
         "   height: 16px;"
-        "   border: 1px solid #555;"
+        "   border: 1px solid %2;"
         "   border-radius: 3px;"
-        "   background-color: #1e1e1e;"
+        "   background-color: %3;"
         "}"
         "QCheckBox::indicator:checked {"
-        "   background-color: #5dade2;"
-        "   border-color: #5dade2;"
+        "   background-color: %4;"
+        "   border-color: %4;"
         "}"
         "QCheckBox:hover {"
-        "   color: #ffffff;"
+        "   color: %5;"
         "}"
-    );
+    ).arg(AppTheme::colors().textSecondary, AppTheme::colors().borderStrong,
+          AppTheme::colors().bgCodeBlock, AppTheme::colors().accent,
+          AppTheme::colors().textPrimary));
     return check;
 }
 

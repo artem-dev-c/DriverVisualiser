@@ -73,6 +73,10 @@ set(PROJECT_SOURCES
     src/utils/mappers/ClassNameMapper.cpp
     src/utils/mappers/ClassNameMapper.h
 
+    # Utils - Theme
+    src/utils/AppTheme.cpp
+    src/utils/AppTheme.h
+
     # UI - Widgets
     src/ui/widgets/CategorySectionWidget.cpp
     src/ui/widgets/CategorySectionWidget.h
@@ -126,6 +130,7 @@ target_include_directories(DriverVisualiser PRIVATE
     src/core/scoring
     src/core/reporting
     src/core/reporting/formatters
+    src/utils
     src/utils/formatters
     src/utils/grouper
     src/utils/mappers

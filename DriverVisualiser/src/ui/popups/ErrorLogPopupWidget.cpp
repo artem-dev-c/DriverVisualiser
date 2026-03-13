@@ -1,4 +1,5 @@
 #include "ErrorLogPopupWidget.h"
+#include "AppTheme.h"
 #include <QScrollArea>
 #include <QApplication>
 #include <QScreen>
@@ -23,13 +24,13 @@ void ErrorLogPopupWidget::setupUi()
     setMaximumHeight(400);
     
     // Styling: rounded border, drop shadow
-    setStyleSheet(
+    setStyleSheet(QString(
         "ErrorLogPopupWidget {"
-        "   background-color: #2b2b2b;"
-        "   border: 1px solid #444;"
+        "   background-color: %1;"
+        "   border: 1px solid %2;"
         "   border-radius: 6px;"
         "}"
-    );
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     // Main layout with scroll area
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -49,6 +50,7 @@ void ErrorLogPopupWidget::setupUi()
         "QScrollArea > QWidget > QWidget {"
         "   background-color: transparent;"
         "}"
+        + AppTheme::scrollbarStyleSheet()
     );
     
     QWidget* contentWidget = new QWidget();
@@ -66,7 +68,7 @@ void ErrorLogPopupWidget::setupUi()
     
     if (m_entries.empty()) {
         QLabel* noLogs = new QLabel("No error logs found ✓");
-        noLogs->setStyleSheet("color: #27ae60; font-style: italic; font-size: 11px;");
+        noLogs->setStyleSheet(QString("color: %1; font-style: italic; font-size: 11px;").arg(AppTheme::colors().healthy));
         layout->addWidget(noLogs);
     } else {
         // Show up to 10 most recent entries
@@ -83,7 +85,7 @@ void ErrorLogPopupWidget::setupUi()
                 QString("+ %1 more entries (open Event Viewer for full log)")
                 .arg(m_entries.size() - 10)
             );
-            moreLabel->setStyleSheet("color: #888; font-style: italic; font-size: 10px;");
+            moreLabel->setStyleSheet(QString("color: %1; font-style: italic; font-size: 10px;").arg(AppTheme::colors().textSecondary));
             layout->addWidget(moreLabel);
         }
     }
@@ -97,28 +99,13 @@ void ErrorLogPopupWidget::setupUi()
 QLabel* ErrorLogPopupWidget::createSectionHeader(const QString& title)
 {
     QLabel* header = new QLabel(title);
-    header->setStyleSheet(
-        "color: #5dade2;"
+    header->setStyleSheet(QString(
+        "color: %1;"
         "font-weight: bold;"
         "font-size: 12px;"
         "padding-top: 6px;"
         "padding-bottom: 4px;"
-        "color: #5dade2;"
-        "font-weight: bold;"
-        "font-size: 12px;"
-        "padding-top: 6px;"
-        "padding-bottom: 4px;"
-        "color: #5dade2;"
-        "font-weight: bold;"
-        "font-size: 12px;"
-        "padding-top: 6px;"
-        "padding-bottom: 4px;"
-        "color: #5dade2;"
-        "font-weight: bold;"
-        "font-size: 12px;"
-        "padding-top: 6px;"
-        "padding-bottom: 4px;"
-    );
+    ).arg(AppTheme::colors().accentText));
     return header;
 }
 
@@ -136,7 +123,7 @@ QWidget* ErrorLogPopupWidget::createLogRow(const ErrorLogEntry& entry)
     // Timestamp
     QString timestamp = formatTimestamp(entry.timestamp);
     QLabel* timeLabel = new QLabel(timestamp);
-    timeLabel->setStyleSheet("color: #999; font-size: 10px;");
+    timeLabel->setStyleSheet(QString("color: %1; font-size: 10px;").arg(AppTheme::colors().textSecondary));
     topLine->addWidget(timeLabel);
     
     // Level badge
@@ -152,7 +139,7 @@ QWidget* ErrorLogPopupWidget::createLogRow(const ErrorLogEntry& entry)
     
     // Event ID
     QLabel* eventIdLabel = new QLabel(QString("(Event %1)").arg(entry.eventId));
-    eventIdLabel->setStyleSheet("color: #777; font-size: 9px;");
+    eventIdLabel->setStyleSheet(QString("color: %1; font-size: 9px;").arg(AppTheme::colors().textMuted));
     topLine->addWidget(eventIdLabel);
     
     topLine->addStretch();
@@ -167,17 +154,17 @@ QWidget* ErrorLogPopupWidget::createLogRow(const ErrorLogEntry& entry)
     
     QLabel* msgLabel = new QLabel(message);
     msgLabel->setWordWrap(true);
-    msgLabel->setStyleSheet("color: #ddd; font-size: 11px;");
+    msgLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(AppTheme::colors().textValue));
     layout->addWidget(msgLabel);
     
     // Styling: colored left border
     row->setStyleSheet(QString(
         "QWidget {"
-        "   background-color: rgba(0, 0, 0, 0.2);"
-        "   border-left: 3px solid %1;"
+        "   background-color: %1;"
+        "   border-left: 3px solid %2;"
         "   border-radius: 3px;"
         "}"
-    ).arg(color));
+    ).arg(AppTheme::isDark() ? "rgba(0, 0, 0, 0.2)" : "rgba(0, 0, 0, 0.04)", color));
     
     return row;
 }
@@ -272,12 +259,12 @@ QString ErrorLogPopupWidget::formatTimestamp(const std::chrono::system_clock::ti
 QString ErrorLogPopupWidget::getSeverityColor(const std::wstring& level)
 {
     if (level == L"Critical") {
-        return "#e74c3c";  // Red
+        return AppTheme::colors().critical;
     } else if (level == L"Error") {
-        return "#e74c3c";  // Red
+        return AppTheme::colors().critical;
     } else if (level == L"Warning") {
-        return "#f39c12";  // Orange
+        return AppTheme::colors().warning;
     } else {
-        return "#3498db";  // Blue
+        return AppTheme::colors().accent;
     }
 }

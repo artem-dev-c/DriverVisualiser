@@ -1,4 +1,5 @@
 #include "SearchFilterBar.h"
+#include "AppTheme.h"
 #include <QIcon>
 
 SearchFilterBar::SearchFilterBar(QWidget* parent)
@@ -30,47 +31,52 @@ void SearchFilterBar::setupUi()
     m_searchBox = new QLineEdit();
     m_searchBox->setPlaceholderText("Search by manufacturer, name, device class...");
     m_searchBox->setClearButtonEnabled(true);
-    m_searchBox->setStyleSheet(
+    m_searchBox->setStyleSheet(QString(
         "QLineEdit {"
-        "   background-color: rgba(43, 43, 43, 0.7); "  // Slightly more opaque
-        "   border: 1px solid #3d3d3d; "
+        "   background-color: %1; "  // Slightly more opaque
+        "   border: 1px solid %2; "
         "   border-radius: 10px; "                     // More rounded
         "   padding: 12px 18px; "                      // More padding
         "   font-size: 12px; "
-        "   color: #ffffff; "
+        "   color: %3; "
         "}"
         "QLineEdit:focus {"
-        "   background-color: #2b2b2b; "               // Solid on focus
-        "   border: 1px solid #5dade2; "
+        "   background-color: %4; "               // Solid on focus
+        "   border: 1px solid %5; "
         "}"
         "QLineEdit::placeholder {"
-        "   color: #888888; "
+        "   color: %6; "
         "   font-style: italic; "
         "}"
-    );
+    ).arg(AppTheme::colors().bgInput, AppTheme::colors().borderInput,
+          AppTheme::colors().textPrimary, AppTheme::colors().bgInputFocus,
+          AppTheme::colors().borderFocus, AppTheme::colors().textPlaceholder));
     layout->addWidget(m_searchBox, 1);  // Stretch to fill space
     
     // === Filter Button - Match sections style ===
     m_filterButton = new QPushButton("⚙ Filters");
-    m_filterButton->setStyleSheet(
+    m_filterButton->setStyleSheet(QString(
         "QPushButton {"
-        "   background-color: #2b2b2b; "
-        "   border: 1px solid #3d3d3d; "
+        "   background-color: %1; "
+        "   border: 1px solid %2; "
         "   border-radius: 10px; "                     // Match search bar
         "   padding: 12px 24px; "                      // Match search bar padding
         "   font-size: 12px; "
-        "   color: #cccccc; "
+        "   color: %3; "
         "   font-weight: bold; "
         "}"
         "QPushButton:hover {"
-        "   background-color: #353535; "
-        "   border-color: #5dade2; "
-        "   color: #ffffff; "
+        "   background-color: %4; "
+        "   border-color: %5; "
+        "   color: %6; "
         "}"
         "QPushButton:pressed {"
-        "   background-color: #1e1e1e; "
+        "   background-color: %7; "
         "}"
-    );
+    ).arg(AppTheme::colors().bgElevated, AppTheme::colors().borderNormal,
+          AppTheme::colors().textSecondary, AppTheme::colors().bgHover,
+          AppTheme::colors().accent, AppTheme::colors().textPrimary,
+          AppTheme::colors().bgBase));
     m_filterButton->setFixedWidth(130);
     layout->addWidget(m_filterButton);
 }

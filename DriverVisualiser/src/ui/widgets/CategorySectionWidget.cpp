@@ -1,5 +1,6 @@
 #include "CategorySectionWidget.h"
 #include "DriverCardWidget.h"
+#include "AppTheme.h"
 #include <QHBoxLayout>
 
 CategorySectionWidget::CategorySectionWidget(const ProcessedCategory& category,
@@ -30,15 +31,16 @@ void CategorySectionWidget::setupUi()
     headerWidget->setAutoFillBackground(true);
     
     // Match driver cards - 16px rounded corners
-    QString headerStyle = 
+    const auto& c = AppTheme::colors();
+    QString headerStyle = QString(
         "QWidget { "
-        "   background-color: #2b2b2b; "
+        "   background-color: %1; "
         "   border-radius: 16px; "        
-        "   border: 1px solid #3d3d3d; "
+        "   border: 1px solid %2; "
         "}"
         "QWidget:hover { "
-        "   background-color: #353535; "
-        "}";
+        "   background-color: %3; "
+        "}").arg(c.bgElevated, c.borderNormal, c.bgHover);
     
     headerWidget->setStyleSheet(headerStyle);
     headerWidget->setCursor(Qt::PointingHandCursor);
@@ -51,9 +53,9 @@ void CategorySectionWidget::setupUi()
     m_toggleButton = new QPushButton(m_expanded ? "⌄" : "›");
     m_toggleButton->setFixedSize(24, 24);
     m_toggleButton->setFlat(true);
-    m_toggleButton->setStyleSheet(
+    m_toggleButton->setStyleSheet(QString(
         "QPushButton { "
-        "   color: #cccccc; "             // More visible (was #aaaaaa)
+        "   color: %1; "             // More visible (was #aaaaaa)
         "   font-size: 18px; "            // Bigger arrows (was 16px)
         "   font-weight: normal; "
         "   border: none; "
@@ -61,9 +63,9 @@ void CategorySectionWidget::setupUi()
         "   padding: 0px; "              // No padding
         "}"
         "QPushButton:hover { "
-        "   color: #ffffff; "
+        "   color: %2; "
         "}"
-    );
+    ).arg(c.textSecondary, c.textPrimary));
     connect(m_toggleButton, &QPushButton::clicked, this, &CategorySectionWidget::toggleExpanded);
     headerLayout->addWidget(m_toggleButton);
 
@@ -74,14 +76,14 @@ void CategorySectionWidget::setupUi()
     titleFont.setBold(true);
     titleFont.setPointSize(11);
     m_titleLabel->setFont(titleFont);
-    m_titleLabel->setStyleSheet(
+    m_titleLabel->setStyleSheet(QString(
         "QLabel { "
-        "   color: #ffffff; "            // Pure white
+        "   color: %1; "            // Pure white
         "   background: transparent; "   // No pill
         "   border: none; "              // No border
         "   padding: 0px; "              // No padding
         "}"
-    );
+    ).arg(c.textPrimary));
     headerLayout->addWidget(m_titleLabel);
 
     // Status text
@@ -90,14 +92,14 @@ void CategorySectionWidget::setupUi()
     QFont statusFont = statusLabel->font();
     statusFont.setPointSize(10);
     statusLabel->setFont(statusFont);
-    statusLabel->setStyleSheet(
+    statusLabel->setStyleSheet(QString(
         "QLabel { "
-        "   color: #cccccc; "            // More visible (was #aaaaaa)
+        "   color: %1; "            // More visible (was #aaaaaa)
         "   background: transparent; "   // No pill
         "   border: none; "              // No border
         "   padding: 0px; "              // No padding
         "}"
-    );
+    ).arg(c.textSecondary));
     headerLayout->addWidget(statusLabel);
 
     // Spacer
@@ -118,13 +120,13 @@ void CategorySectionWidget::setupUi()
         
         m_healthIndicator->setStyleSheet(QString(
             "QLabel {"
-            "   color: #ffffff; "
+            "   color: %2; "
             "   padding: 6px 12px; "
             "   border-radius: 6px; "
             "   background-color: %1; "
             "   border: none; "           // No pill border
             "}"
-        ).arg(badgeColor.name()));
+        ).arg(badgeColor.name(), c.textOnAccent));
         
         headerLayout->addWidget(m_healthIndicator);
     } else {
@@ -197,13 +199,10 @@ QString CategorySectionWidget::getHealthIndicatorIcon() const
 
 QColor CategorySectionWidget::getHealthIndicatorColor() const
 {
-    if (m_category.healthInfo.criticalCount > 0) {
-        return QColor(231, 76, 60);   // Red
-    } else if (m_category.healthInfo.warningCount > 0) {
-        return QColor(243, 156, 18);  // Orange
-    } else {
-        return QColor(46, 204, 113);  // Green
-    }
+    const auto& c = AppTheme::colors();
+    if (m_category.healthInfo.criticalCount > 0) return QColor(c.critical);
+    if (m_category.healthInfo.warningCount  > 0) return QColor(c.warning);
+    return QColor(c.healthy);
 }
 
 void CategorySectionWidget::setExpanded(bool expanded)
