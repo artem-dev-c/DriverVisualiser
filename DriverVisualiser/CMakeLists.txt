@@ -102,6 +102,8 @@ set(PROJECT_SOURCES
     src/ui/widgets/SearchFilterBar.h
     src/ui/widgets/ReportNotification.cpp
     src/ui/widgets/ReportNotification.h
+    src/ui/widgets/EventTimelineWidget.cpp
+    src/ui/widgets/EventTimelineWidget.h
 
     # UI - Popups
     src/ui/popups/DriverInfoPopup.cpp
@@ -112,7 +114,9 @@ set(PROJECT_SOURCES
     src/ui/popups/FilterPopupWidget.h
     src/ui/popups/FlagPopupWidget.cpp
     src/ui/popups/FlagPopupWidget.h
-
+    src/ui/popups/DayEventsPopup.cpp
+    src/ui/popups/DayEventsPopup.h
+    
     # UI - Dashboard
     src/ui/dashboard/DashboardWidget.cpp
     src/ui/dashboard/DashboardWidget.h

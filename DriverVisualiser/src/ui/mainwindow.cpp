@@ -10,6 +10,7 @@
 #include "SystemInfoCollector.h"
 #include "CategorySectionWidget.h"
 #include "DashboardWidget.h"
+#include "EventTimelineWidget.h"
 #include "SearchFilterBar.h"
 #include "ClassNameMapper.h"
 #include "ReportGenerator.h"
@@ -322,6 +323,24 @@ void MainWindow::populateDriverList()
     connect(m_dashboard, &DashboardWidget::reportRequested, this, &MainWindow::onGenerateReportRequested);
 
     // =========================================================================
+    // Event Timeline Graph
+    // =========================================================================
+
+    // Aggregate all error logs from all drivers
+    std::vector<ErrorLogEntry> allErrorLogs;
+    for (const auto& driver : m_allDrivers) {
+        allErrorLogs.insert(allErrorLogs.end(), 
+                           driver.errorLog.begin(), 
+                           driver.errorLog.end());
+    }
+
+    EventTimelineWidget* timeline = new EventTimelineWidget();
+    timeline->setDayRange(30);  // Show 30 days by default
+    timeline->setEvents(allErrorLogs);
+    contentLayout->addWidget(timeline);
+    contentLayout->addSpacing(12);
+
+    // =========================================================================
     // Search / Filter Bar
     // =========================================================================
 
@@ -355,25 +374,6 @@ void MainWindow::populateDriverList()
     }
 
     contentLayout->addStretch();
-    
-    // =========================================================================
-    // Footer Note
-    // =========================================================================
-    
-    QLabel* footerLabel = new QLabel("Driver Visualiser - Keeping your drivers in check since 2026");
-    QFont footerFont = footerLabel->font();
-    footerFont.setPointSize(8);
-    footerFont.setItalic(true);
-    footerLabel->setFont(footerFont);
-    footerLabel->setAlignment(Qt::AlignCenter);
-    footerLabel->setStyleSheet(QString(
-        "QLabel {"
-        "   color: %1;"
-        "   background: transparent;"
-        "   padding: 16px 0px 8px 0px;"
-        "}"
-    ).arg(AppTheme::colors().textMuted));
-    contentLayout->addWidget(footerLabel);
 
     outerWrapperLayout->addWidget(contentWidget, 70);
     outerWrapperLayout->addStretch(15);

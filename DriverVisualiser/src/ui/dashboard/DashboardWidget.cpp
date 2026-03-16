@@ -484,3 +484,10 @@ void DashboardWidget::setScanButtonEnabled(bool enabled)
         m_rescanButton->setText(enabled ? "  Scan Drivers" : "  Scanning...");
     }
 }
+
+void DashboardWidget::setErrorLogs(const std::vector<ErrorLogEntry>& entries)
+{
+    // Pass error logs to timeline widget if you add one to dashboard later
+    // For now, this is handled in mainwindow directly
+    (void)entries;  // Suppress unused parameter warning
+}

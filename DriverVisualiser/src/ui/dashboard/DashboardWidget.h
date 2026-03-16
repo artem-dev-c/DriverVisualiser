@@ -9,9 +9,11 @@
 #include "DriverInfo.h"
 #include "SystemHealthSummary.h"
 #include "SystemInfo.h"
+#include "ErrorLogEntry.h"
 
 class ScoreRingWidget;
 class IssueListWidget;
+class EventTimelineWidget;
 
 /**
  * @brief Report format selection
@@ -45,6 +47,9 @@ public:
 
     /// Populate dashboard from scanned data (called after scan completes)
     void populate(const std::vector<DriverInfo>& drivers, const SystemInfo& sysInfo);
+
+    /// Set error log entries for the timeline widget
+    void setErrorLogs(const std::vector<ErrorLogEntry>& entries);
 
     /// Returns the currently selected log window in days (7, 30, or 90)
     int selectedLogDays() const;
@@ -95,6 +100,9 @@ private:
 
     // === Issue column ===
     IssueListWidget* m_issueList = nullptr;
+
+    // === Timeline ===
+    EventTimelineWidget* m_timeline = nullptr;
 
     // === Control column ===
     QLabel*      m_osLabel        = nullptr;
