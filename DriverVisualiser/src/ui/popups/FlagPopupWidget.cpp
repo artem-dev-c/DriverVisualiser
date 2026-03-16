@@ -27,7 +27,7 @@ void FlagPopupWidget::setupUi(const std::vector<HealthFlag>& sortedFlags)
         "FlagPopupWidget {"
         "   background-color: %1;"
         "   border: 1px solid %2;"
-        "   border-radius: 6px;"
+        "   border-radius: 0px;"
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
@@ -45,32 +45,41 @@ void FlagPopupWidget::setupUi(const std::vector<HealthFlag>& sortedFlags)
 QFrame* FlagPopupWidget::createFlagRow(const HealthFlag& flag)
 {
     QFrame* row = new QFrame();
-    row->setMinimumHeight(36);
+    row->setMinimumHeight(40);
     
     QString outlineColor = getOutlineColor(flag.severity);
-    QString bgColor = getBackgroundColor(flag.severity);
     
+    // Clean card style with subtle border
     row->setStyleSheet(QString(
         "QFrame {"
         "   border: 1px solid %1;"
-        "   border-radius: 4px;"
+        "   border-radius: 6px;"
         "   background-color: %2;"
         "}"
-    ).arg(outlineColor, bgColor));
+    ).arg(AppTheme::colors().borderNormal, AppTheme::colors().bgCard));
     
     QHBoxLayout* layout = new QHBoxLayout(row);
-    layout->setContentsMargins(10, 8, 10, 8);
+    layout->setContentsMargins(12, 10, 12, 10);
     layout->setSpacing(10);
     
-    // Severity indicator dot
-    QLabel* dot = new QLabel();
-    dot->setFixedSize(10, 10);
-    dot->setStyleSheet(QString(
+    // Severity indicator - small colored pill badge
+    QLabel* badge = new QLabel();
+    QString badgeColor = outlineColor;
+    QString badgeBg = (flag.severity == HealthFlagSeverity::Critical) 
+        ? "rgba(231, 76, 60, 0.15)"
+        : (flag.severity == HealthFlagSeverity::Warning)
+            ? "rgba(243, 156, 18, 0.15)"
+            : (flag.severity == HealthFlagSeverity::Caution)
+                ? "rgba(241, 196, 15, 0.15)"
+                : "rgba(93, 173, 226, 0.15)";
+    
+    badge->setFixedSize(8, 8);
+    badge->setStyleSheet(QString(
         "background-color: %1;"
-        "border-radius: 5px;"
+        "border-radius: 4px;"
         "border: none;"
-    ).arg(outlineColor));
-    layout->addWidget(dot);
+    ).arg(badgeColor));
+    layout->addWidget(badge);
     
     // Description text
     QLabel* text = new QLabel(QString::fromStdWString(flag.description));
@@ -81,7 +90,7 @@ QFrame* FlagPopupWidget::createFlagRow(const HealthFlag& flag)
         "border: none;"
         "background: transparent;"
         "font-size: 12px;"
-    ).arg(getTextColor(flag.severity)));
+    ).arg(AppTheme::colors().textValue));
     layout->addWidget(text, 1);
     
     return row;
@@ -153,30 +162,6 @@ QString FlagPopupWidget::getOutlineColor(HealthFlagSeverity severity)
         case HealthFlagSeverity::Warning:  return AppTheme::colors().warning;
         case HealthFlagSeverity::Caution:  return AppTheme::colors().caution;
         case HealthFlagSeverity::Info:     return AppTheme::colors().accent;
-        default:                           return "#95a5a6";  // Gray
-    }
-}
-
-QString FlagPopupWidget::getBackgroundColor(HealthFlagSeverity severity)
-{
-    switch (severity) {
-        case HealthFlagSeverity::Critical: return "rgba(231, 76, 60, 0.2)";
-        case HealthFlagSeverity::Warning:  return "rgba(243, 156, 18, 0.2)";
-        case HealthFlagSeverity::Caution:  return "rgba(241, 196, 15, 0.2)";
-        case HealthFlagSeverity::Info:     return AppTheme::isDark()
-            ? "rgba(93, 173, 226, 0.2)" : "rgba(41, 128, 185, 0.2)";
-        default:                           return "rgba(149, 165, 166, 0.15)";
-    }
-}
-
-QString FlagPopupWidget::getTextColor(HealthFlagSeverity severity)
-{
-    if (!AppTheme::isDark()) return getOutlineColor(severity);
-    switch (severity) {
-        case HealthFlagSeverity::Critical: return "#ff6b5b";  // Lighter red
-        case HealthFlagSeverity::Warning:  return "#ffb347";  // Lighter orange
-        case HealthFlagSeverity::Caution:  return "#ffe066";  // Lighter yellow
-        case HealthFlagSeverity::Info:     return AppTheme::colors().accent;
-        default:                           return "#bdc3c7";  // Light gray
+        default:                           return "#95a5a6";
     }
 }

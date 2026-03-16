@@ -23,12 +23,12 @@ void ErrorLogPopupWidget::setupUi()
     setFixedWidth(520);
     setMaximumHeight(400);
     
-    // Styling: rounded border, drop shadow
+    // Main popup styling (match DriverInfoPopup)
     setStyleSheet(QString(
         "ErrorLogPopupWidget {"
         "   background-color: %1;"
         "   border: 1px solid %2;"
-        "   border-radius: 6px;"
+        "   border-radius: 0px;"
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
@@ -71,22 +71,12 @@ void ErrorLogPopupWidget::setupUi()
         noLogs->setStyleSheet(QString("color: %1; font-style: italic; font-size: 11px;").arg(AppTheme::colors().healthy));
         layout->addWidget(noLogs);
     } else {
-        // Show up to 10 most recent entries
-        int showCount = std::min(10, static_cast<int>(m_entries.size()));
-        
-        for (int i = 0; i < showCount; i++) {
+        // Show all entries
+        for (size_t i = 0; i < m_entries.size(); i++) {
             layout->addWidget(createLogRow(m_entries[i]));
-            layout->addSpacing(4);
-        }
-        
-        // "View more" message if there are more entries
-        if (m_entries.size() > 10) {
-            QLabel* moreLabel = new QLabel(
-                QString("+ %1 more entries (open Event Viewer for full log)")
-                .arg(m_entries.size() - 10)
-            );
-            moreLabel->setStyleSheet(QString("color: %1; font-style: italic; font-size: 10px;").arg(AppTheme::colors().textSecondary));
-            layout->addWidget(moreLabel);
+            if (i < m_entries.size() - 1) {  // Don't add spacing after last item
+                layout->addSpacing(4);
+            }
         }
     }
     
@@ -113,58 +103,87 @@ QWidget* ErrorLogPopupWidget::createLogRow(const ErrorLogEntry& entry)
 {
     QWidget* row = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(row);
-    layout->setContentsMargins(10, 8, 10, 8);
-    layout->setSpacing(4);
+    layout->setContentsMargins(12, 10, 12, 10);
+    layout->setSpacing(5);
     
-    // === Top line: Timestamp + Level badge ===
+    // === Top line: Level badge + Event ID ===
     QHBoxLayout* topLine = new QHBoxLayout();
     topLine->setSpacing(10);
     
-    // Timestamp
-    QString timestamp = formatTimestamp(entry.timestamp);
-    QLabel* timeLabel = new QLabel(timestamp);
-    timeLabel->setStyleSheet(QString("color: %1; font-size: 10px;").arg(AppTheme::colors().textSecondary));
-    topLine->addWidget(timeLabel);
-    
-    // Level badge
+    // Level badge - colored background
     QString levelText = QString::fromStdWString(entry.level);
     QString color = getSeverityColor(entry.level);
+    QString bgColor = (entry.level == L"Critical" || entry.level == L"Error") 
+        ? "rgba(231, 76, 60, 0.2)" 
+        : (entry.level == L"Warning")
+            ? "rgba(243, 156, 18, 0.2)"
+            : "rgba(93, 173, 226, 0.2)";
+    
     QLabel* levelLabel = new QLabel(levelText);
     levelLabel->setStyleSheet(QString(
         "color: %1;"
+        "background-color: %2;"
         "font-weight: bold;"
         "font-size: 10px;"
-    ).arg(color));
+        "padding: 4px 10px;"
+        "border-radius: 4px;"
+        "border: none;"
+    ).arg(color, bgColor));
     topLine->addWidget(levelLabel);
     
-    // Event ID
-    QLabel* eventIdLabel = new QLabel(QString("(Event %1)").arg(entry.eventId));
-    eventIdLabel->setStyleSheet(QString("color: %1; font-size: 9px;").arg(AppTheme::colors().textMuted));
+    // Event ID - plain text, no pill
+    QLabel* eventIdLabel = new QLabel(QString("Event %1").arg(entry.eventId));
+    eventIdLabel->setStyleSheet(QString(
+        "color: %1;"
+        "font-size: 10px;"
+        "background: transparent;"
+        "border: none;"
+        "padding: 0px;"
+    ).arg(AppTheme::colors().textSecondary));
     topLine->addWidget(eventIdLabel);
     
     topLine->addStretch();
+    
+    // Timestamp on the right - plain text, no pill
+    QString timestamp = formatTimestamp(entry.timestamp);
+    QLabel* timeLabel = new QLabel(timestamp);
+    timeLabel->setStyleSheet(QString(
+        "color: %1;"
+        "font-size: 10px;"
+        "background: transparent;"
+        "border: none;"
+        "padding: 0px;"
+    ).arg(AppTheme::colors().textMuted));
+    topLine->addWidget(timeLabel);
+    
     layout->addLayout(topLine);
     
-    // === Message ===
+    // === Message - with more opacity ===
     QString message = QString::fromStdWString(entry.message);
     // Truncate if very long
-    if (message.length() > 200) {
-        message = message.left(197) + "...";
+    if (message.length() > 300) {
+        message = message.left(297) + "...";
     }
     
     QLabel* msgLabel = new QLabel(message);
     msgLabel->setWordWrap(true);
-    msgLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(AppTheme::colors().textValue));
+    msgLabel->setStyleSheet(QString(
+        "color: rgba(255, 255, 255, 0.7);"
+        "font-size: 11px;"
+        "line-height: 1.4;"
+        "background: transparent;"
+        "border: none;"
+    ));
     layout->addWidget(msgLabel);
     
-    // Styling: colored left border
+    // Styling: subtle card with border
     row->setStyleSheet(QString(
         "QWidget {"
         "   background-color: %1;"
-        "   border-left: 3px solid %2;"
-        "   border-radius: 3px;"
+        "   border: 1px solid %2;"
+        "   border-radius: 6px;"
         "}"
-    ).arg(AppTheme::isDark() ? "rgba(0, 0, 0, 0.2)" : "rgba(0, 0, 0, 0.04)", color));
+    ).arg(AppTheme::colors().bgCard, AppTheme::colors().borderNormal));
     
     return row;
 }

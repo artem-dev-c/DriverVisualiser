@@ -9,8 +9,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Svg)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Svg)
 
 find_library(SETUP_LIB setupapi)
 
@@ -77,6 +77,10 @@ set(PROJECT_SOURCES
     src/utils/AppTheme.cpp
     src/utils/AppTheme.h
 
+    # Utils - Icons
+    src/utils/IconProvider.cpp
+    src/utils/IconProvider.h
+
     # UI - Widgets
     src/ui/widgets/CategorySectionWidget.cpp
     src/ui/widgets/CategorySectionWidget.h
@@ -110,16 +114,22 @@ set(PROJECT_SOURCES
     src/ui/dashboard/DashboardWidget.h
 )
 
+# Resource files
+set(PROJECT_RESOURCES
+    icons.qrc
+)
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(DriverVisualiser
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        ${PROJECT_RESOURCES}
     )
 else()
     if(ANDROID)
-        add_library(DriverVisualiser SHARED ${PROJECT_SOURCES})
+        add_library(DriverVisualiser SHARED ${PROJECT_SOURCES} ${PROJECT_RESOURCES})
     else()
-        add_executable(DriverVisualiser ${PROJECT_SOURCES})
+        add_executable(DriverVisualiser ${PROJECT_SOURCES} ${PROJECT_RESOURCES})
     endif()
 endif()
 
@@ -143,6 +153,7 @@ target_include_directories(DriverVisualiser PRIVATE
 target_link_libraries(DriverVisualiser
     PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Svg
     setupapi
     cfgmgr32
     wevtapi

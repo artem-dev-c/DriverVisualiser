@@ -29,10 +29,8 @@ private:
     /// Create a single flag row
     QFrame* createFlagRow(const HealthFlag& flag);
     
-    /// Get colors for severity
+    /// Get border color for severity
     static QString getOutlineColor(HealthFlagSeverity severity);
-    static QString getBackgroundColor(HealthFlagSeverity severity);
-    static QString getTextColor(HealthFlagSeverity severity);
     
     qint64 m_closeTime = 0;
 };

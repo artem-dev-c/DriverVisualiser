@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QLabel>
+#include <QPushButton>
 #include <vector>
 #include "HealthFlag.h"
 
@@ -41,7 +42,7 @@ private:
 
     std::vector<HealthFlag> m_flags;
     QLabel*          m_textLabel  = nullptr;
-    QLabel*          m_arrowLabel = nullptr;
+    QLabel*          m_arrowLabel = nullptr;  // Visual indicator (not a button)
     FlagPopupWidget* m_popup      = nullptr;
     bool             m_hasIssues  = false;
 };

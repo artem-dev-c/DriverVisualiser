@@ -1,6 +1,7 @@
 #include "CategorySectionWidget.h"
 #include "DriverCardWidget.h"
 #include "AppTheme.h"
+#include "IconProvider.h"
 #include <QHBoxLayout>
 
 CategorySectionWidget::CategorySectionWidget(const ProcessedCategory& category,
@@ -49,23 +50,25 @@ void CategorySectionWidget::setupUi()
     headerLayout->setContentsMargins(16, 14, 16, 14);
     headerLayout->setSpacing(12);
 
-    // Bigger ASCII arrows (18px font)
-    m_toggleButton = new QPushButton(m_expanded ? "⌄" : "›");
+    // Toggle button with SVG icon
+    m_toggleButton = new QPushButton();
     m_toggleButton->setFixedSize(24, 24);
     m_toggleButton->setFlat(true);
+    m_toggleButton->setIcon(IconProvider::icon(
+        m_expanded ? IconProvider::ChevronDown : IconProvider::ChevronRight,
+        AppTheme::colors().textSecondary,
+        20  // Slightly smaller than button for padding
+    ));
+    m_toggleButton->setIconSize(QSize(20, 20));
     m_toggleButton->setStyleSheet(QString(
         "QPushButton { "
-        "   color: %1; "             // More visible (was #aaaaaa)
-        "   font-size: 18px; "            // Bigger arrows (was 16px)
-        "   font-weight: normal; "
         "   border: none; "
-        "   background: transparent; "   // No pill
-        "   padding: 0px; "              // No padding
+        "   background: transparent; "
+        "   padding: 0px; "
         "}"
         "QPushButton:hover { "
-        "   color: %2; "
         "}"
-    ).arg(c.textSecondary, c.textPrimary));
+    ));
     connect(m_toggleButton, &QPushButton::clicked, this, &CategorySectionWidget::toggleExpanded);
     headerLayout->addWidget(m_toggleButton);
 
@@ -224,5 +227,10 @@ void CategorySectionWidget::toggleExpanded()
 
 void CategorySectionWidget::updateToggleButton()
 {
-    m_toggleButton->setText(m_expanded ? "⌄" : "›");  // Modern thin chevrons
+    const auto& c = AppTheme::colors();
+    m_toggleButton->setIcon(IconProvider::icon(
+        m_expanded ? IconProvider::ChevronDown : IconProvider::ChevronRight,
+        c.textSecondary,
+        20
+    ));
 }

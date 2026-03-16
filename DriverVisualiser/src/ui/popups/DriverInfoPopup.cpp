@@ -4,6 +4,7 @@
 #include "DriverDateFormatter.h"
 #include "SystemInfoCollector.h"
 #include "AppTheme.h"
+#include "IconProvider.h"
 
 #include <QApplication>
 #include <QScreen>
@@ -36,7 +37,7 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
         "DriverInfoPopup {"
         "   background-color: %1;"
         "   border: 1px solid %2;"
-        "   border-radius: 6px;"
+        "   border-radius: 0px;"  // Square borders for Windows
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
@@ -183,8 +184,14 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
     QHBoxLayout* buttonLayout = new QHBoxLayout(buttonBar);
     buttonLayout->setContentsMargins(12, 8, 12, 11);
     
-    QPushButton* copyAllButton = new QPushButton("Copy All");
-    copyAllButton->setFixedSize(100, 32);
+    QPushButton* copyAllButton = new QPushButton("  Copy All");
+    copyAllButton->setIcon(IconProvider::icon(
+        IconProvider::Copy,
+        AppTheme::colors().textOnAccent,
+        18
+    ));
+    copyAllButton->setIconSize(QSize(18, 18));
+    copyAllButton->setFixedSize(120, 32);  // Wider for icon
     copyAllButton->setStyleSheet(QString(
         "QPushButton {"
         "   background-color: %1;"
@@ -286,16 +293,20 @@ QWidget* DriverInfoPopup::createCopyableFieldRow(const QString& label, const QSt
     containerLayout->addWidget(valueWidget, 1);
     
     // Copy button
-    QPushButton* copyButton = new QPushButton("⎘");
-    copyButton->setFixedSize(24, 24);
+    QPushButton* copyButton = new QPushButton();
+    copyButton->setIcon(IconProvider::icon(
+        IconProvider::Copy,
+        AppTheme::colors().textOnAccent,
+        18
+    ));
+    copyButton->setIconSize(QSize(18, 18));
+    copyButton->setFixedSize(28, 28);
     copyButton->setStyleSheet(QString(
         "QPushButton {"
         "   background-color: %1;"
         "   color: %2;"
         "   border: none;"
-        "   border-radius: 3px;"
-        "   font-size: 14px;"
-        "   font-weight: bold;"
+        "   border-radius: 4px;"
         "}"
         "QPushButton:hover {"
         "   background-color: %3;"
@@ -324,31 +335,47 @@ void DriverInfoPopup::copyToClipboard(const QString& text, QPushButton* button)
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setText(text);
     
-    // Visual feedback
+    // Save original text (if any)
     QString originalText = button->text();
-    button->setText("✓");
+    
+    // Visual feedback - show checkmark icon
+    button->setIcon(IconProvider::icon(
+        IconProvider::SquareRoundedCheck,
+        AppTheme::colors().textOnAccent,
+        18
+    ));
+    // Keep text if button has text (Copy All button)
+    if (!originalText.isEmpty()) {
+        button->setText("  Copied!");
+    }
     button->setStyleSheet(QString(
         "QPushButton {"
         "   background-color: %1;"
         "   color: %2;"
         "   border: none;"
-        "   border-radius: 3px;"
-        "   font-size: 14px;"
+        "   border-radius: 4px;"
         "   font-weight: bold;"
+        "   font-size: 11px;"
         "}"
     ).arg(AppTheme::colors().healthy, AppTheme::colors().textOnAccent));
     
     // Reset after 1 second
     QTimer::singleShot(1000, [button, originalText]() {
-        button->setText(originalText);
+        button->setIcon(IconProvider::icon(
+            IconProvider::Copy,
+            AppTheme::colors().textOnAccent,
+            18
+        ));
+        // Restore original text
+        if (!originalText.isEmpty()) {
+            button->setText(originalText);
+        }
         button->setStyleSheet(QString(
             "QPushButton {"
             "   background-color: %1;"
             "   color: %2;"
             "   border: none;"
-            "   border-radius: 3px;"
-            "   font-size: 14px;"
-            "   font-weight: bold;"
+            "   border-radius: 4px;"
             "}"
             "QPushButton:hover {"
             "   background-color: %3;"

@@ -1,5 +1,6 @@
 #include "SearchFilterBar.h"
 #include "AppTheme.h"
+#include "IconProvider.h"
 #include <QIcon>
 
 SearchFilterBar::SearchFilterBar(QWidget* parent)
@@ -54,7 +55,13 @@ void SearchFilterBar::setupUi()
     layout->addWidget(m_searchBox, 1);  // Stretch to fill space
     
     // === Filter Button - Match sections style ===
-    m_filterButton = new QPushButton("⚙ Filters");
+    m_filterButton = new QPushButton("  Filters");
+    m_filterButton->setIcon(IconProvider::icon(
+        IconProvider::Settings,
+        AppTheme::colors().textSecondary,
+        20  // Good visible size
+    ));
+    m_filterButton->setIconSize(QSize(20, 20));
     m_filterButton->setStyleSheet(QString(
         "QPushButton {"
         "   background-color: %1; "
@@ -77,7 +84,7 @@ void SearchFilterBar::setupUi()
           AppTheme::colors().textSecondary, AppTheme::colors().bgHover,
           AppTheme::colors().accent, AppTheme::colors().textPrimary,
           AppTheme::colors().bgBase));
-    m_filterButton->setFixedWidth(130);
+    m_filterButton->setFixedWidth(140);  // Slightly wider for icon
     layout->addWidget(m_filterButton);
 }
 

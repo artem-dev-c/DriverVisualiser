@@ -1,5 +1,6 @@
 #include "ReportNotification.h"
 #include "AppTheme.h"
+#include "IconProvider.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -67,7 +68,7 @@ void ReportNotification::setupUi()
         "ReportNotification {"
         "   background-color: %1;"
         "   border: 1px solid %2;"
-        "   border-radius: 8px;"
+        "   border-radius: 0px;"  // Square corners
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
@@ -76,7 +77,7 @@ void ReportNotification::setupUi()
     mainLayout->setSpacing(8);
     
     // === Title ===
-    m_titleLabel = new QLabel("✓ Report generated successfully");
+    m_titleLabel = new QLabel("Report generated successfully");
     QFont titleFont = m_titleLabel->font();
     titleFont.setPointSize(11);
     titleFont.setBold(true);
@@ -86,7 +87,21 @@ void ReportNotification::setupUi()
         "background: transparent;"
         "border: none;"
     ).arg(AppTheme::colors().accentText));
-    mainLayout->addWidget(m_titleLabel);
+    
+    // Add checkmark icon before title
+    QHBoxLayout* titleLayout = new QHBoxLayout();
+    titleLayout->setSpacing(6);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel* checkIcon = new QLabel();
+    QIcon icon = IconProvider::icon(IconProvider::SquareRoundedCheck, AppTheme::colors().accentText, 18);
+    checkIcon->setPixmap(icon.pixmap(18, 18));
+    checkIcon->setFixedSize(18, 18);
+    titleLayout->addWidget(checkIcon);
+    titleLayout->addWidget(m_titleLabel);
+    titleLayout->addStretch();
+    
+    mainLayout->addLayout(titleLayout);
     
     // === File path ===
     QFileInfo fileInfo(m_filePath);
@@ -127,8 +142,14 @@ void ReportNotification::setupUi()
     
     // Copy to Clipboard button (only for text reports, not HTML)
     if (!m_isHtml) {
-        m_copyButton = new QPushButton("Copy to Clipboard");
-        m_copyButton->setFixedHeight(28);
+        m_copyButton = new QPushButton(" Copy to Clipboard");
+        m_copyButton->setIcon(IconProvider::icon(
+            IconProvider::Copy,
+            AppTheme::colors().textOnAccent,
+            18  // Increased from 16
+        ));
+        m_copyButton->setIconSize(QSize(18, 18));
+        m_copyButton->setFixedHeight(32);  // Taller button
         m_copyButton->setStyleSheet(QString(
             "QPushButton {"
             "   background-color: %1;"
@@ -202,13 +223,15 @@ void ReportNotification::positionBottomRight()
 {
     if (!parentWidget()) return;
     
-    // Position in bottom-right corner of parent window
-    QPoint parentBottomRight = parentWidget()->mapToGlobal(
-        QPoint(parentWidget()->width(), parentWidget()->height())
-    );
+    // Use parent's geometry for accurate positioning
+    QRect parentGeometry = parentWidget()->geometry();
+    QPoint parentPos = parentWidget()->pos();
     
-    int x = parentBottomRight.x() - width() - 20;   // 20px margin from right
-    int y = parentBottomRight.y() - height() - 20;  // 20px margin from bottom
+    const int margin = 40;
+    
+    // Position relative to parent window's bottom-right
+    int x = parentPos.x() + parentGeometry.width() - width() - margin;
+    int y = parentPos.y() + parentGeometry.height() - height() - margin;
     
     // Make sure it's on screen
     QScreen* screen = QApplication::screenAt(QPoint(x, y));
@@ -249,10 +272,16 @@ void ReportNotification::copyToClipboard()
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setText(m_reportText);
     
-    // Visual feedback
-    m_copyButton->setText("✓ Copied!");
+    // Visual feedback - show checkmark icon + text
+    m_copyButton->setIcon(IconProvider::icon(
+        IconProvider::SquareRoundedCheck,
+        AppTheme::colors().textOnAccent,
+        18  // Match size
+    ));
+    m_copyButton->setIconSize(QSize(18, 18));
+    m_copyButton->setText(" Copied!");
     m_copyButton->setStyleSheet(
-        "QPushButton {"
+        QString("QPushButton {"
         "   background-color: %1;"
         "   color: white;"
         "   border: none;"
@@ -261,12 +290,18 @@ void ReportNotification::copyToClipboard()
         "   font-weight: bold;"
         "   padding: 6px 12px;"
         "}"
-    );
+    ).arg(AppTheme::colors().healthy));
     
     // Reset after 1 second
     QTimer::singleShot(1000, this, [this]() {
         if (m_copyButton) {
-            m_copyButton->setText("Copy to Clipboard");
+            m_copyButton->setIcon(IconProvider::icon(
+                IconProvider::Copy,
+                AppTheme::colors().textOnAccent,
+                18  // Match size
+            ));
+            m_copyButton->setIconSize(QSize(18, 18));
+            m_copyButton->setText(" Copy to Clipboard");
             m_copyButton->setStyleSheet(QString(
                 "QPushButton {"
                 "   background-color: %1;"

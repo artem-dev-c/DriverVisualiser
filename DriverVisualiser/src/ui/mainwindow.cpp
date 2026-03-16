@@ -355,6 +355,25 @@ void MainWindow::populateDriverList()
     }
 
     contentLayout->addStretch();
+    
+    // =========================================================================
+    // Footer Note
+    // =========================================================================
+    
+    QLabel* footerLabel = new QLabel("Driver Visualiser - Keeping your drivers in check since 2026");
+    QFont footerFont = footerLabel->font();
+    footerFont.setPointSize(8);
+    footerFont.setItalic(true);
+    footerLabel->setFont(footerFont);
+    footerLabel->setAlignment(Qt::AlignCenter);
+    footerLabel->setStyleSheet(QString(
+        "QLabel {"
+        "   color: %1;"
+        "   background: transparent;"
+        "   padding: 16px 0px 8px 0px;"
+        "}"
+    ).arg(AppTheme::colors().textMuted));
+    contentLayout->addWidget(footerLabel);
 
     outerWrapperLayout->addWidget(contentWidget, 70);
     outerWrapperLayout->addStretch(15);

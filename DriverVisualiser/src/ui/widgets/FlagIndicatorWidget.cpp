@@ -1,8 +1,10 @@
 #include "FlagIndicatorWidget.h"
 #include "AppTheme.h"
 #include "FlagPopupWidget.h"
+#include "IconProvider.h"
 #include <QHBoxLayout>
 #include <QMouseEvent>
+#include <QFontMetrics>
 #include <algorithm>
 
 // ============================================================================
@@ -51,12 +53,14 @@ void FlagIndicatorWidget::setupUi()
     m_textLabel->setFont(f);
     layout->addWidget(m_textLabel, 1);
 
-    // Small chevron — only visible when clickable
-    m_arrowLabel = new QLabel("▾");
-    m_arrowLabel->setFixedWidth(10);
-    QFont af = m_arrowLabel->font();
-    af.setPointSize(9);
-    m_arrowLabel->setFont(af);
+    // Small chevron icon — only visible when clickable (no button, just visual indicator)
+    m_arrowLabel = new QLabel();
+    m_arrowLabel->setPixmap(IconProvider::icon(
+        IconProvider::ChevronDown,
+        AppTheme::colors().textMuted,
+        14
+    ).pixmap(14, 14));
+    m_arrowLabel->setFixedSize(18, 18);
     layout->addWidget(m_arrowLabel);
 
     if (m_hasIssues) {
@@ -85,12 +89,22 @@ void FlagIndicatorWidget::updateAppearance()
     const HealthFlag* flag = mostCriticalFlag();
     if (!flag) return;
 
-    // Truncate description to fit widget width
-    QString desc = QString::fromStdWString(flag->description);
-    if (desc.length() > 22) {
-        desc = desc.left(19) + "…";
+    // Get full description for tooltip
+    QString fullDesc = QString::fromStdWString(flag->description);
+    
+    // Use Qt's eliding for proper text truncation
+    QFontMetrics fm(m_textLabel->font());
+    int availableWidth = 160;  // Approximate space after accounting for padding and arrow
+    QString elidedText = fm.elidedText(fullDesc, Qt::ElideRight, availableWidth);
+    
+    m_textLabel->setText(elidedText);
+    
+    // Add tooltip showing full text if truncated
+    if (elidedText != fullDesc) {
+        setToolTip(fullDesc);
+    } else {
+        setToolTip("");  // Clear tooltip if not truncated
     }
-    m_textLabel->setText(desc);
 
     QString outline = outlineColor(flag->severity);
     QString bg      = backgroundColor(flag->severity);
@@ -106,9 +120,17 @@ void FlagIndicatorWidget::updateAppearance()
     m_textLabel->setStyleSheet(
         QString("color: %1; font-weight: bold; background: transparent;").arg(outline)
     );
-    m_arrowLabel->setStyleSheet(
-        QString("color: %1; background: transparent;").arg(outline)
-    );
+    
+    // Update arrow icon color - use solid color for warnings (not rgba)
+    QString iconColor = outline;
+    if (flag->severity == HealthFlagSeverity::Warning) {
+        iconColor = AppTheme::colors().warning;  // Solid orange for visibility
+    }
+    m_arrowLabel->setPixmap(IconProvider::icon(
+        IconProvider::ChevronDown,
+        iconColor,
+        14
+    ).pixmap(14, 14));
     m_arrowLabel->setVisible(true);
 }
 

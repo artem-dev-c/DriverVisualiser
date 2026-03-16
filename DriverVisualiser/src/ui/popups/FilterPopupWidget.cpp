@@ -9,7 +9,7 @@
 
 FilterPopupWidget::FilterPopupWidget(const std::set<std::wstring>& allManufacturers,
                                      QWidget* parent)
-    : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint)  // Match DriverInfoPopup
+    : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint)
 {
     setAttribute(Qt::WA_DeleteOnClose, false);
     
@@ -22,35 +22,36 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
     setMaximumWidth(320);
     setMaximumHeight(500);  // Increased for scrolling
     
-    // Popup styling - match FlagPopupWidget exactly
+    // Popup styling - match DriverInfoPopup exactly
     setStyleSheet(QString(
         "FilterPopupWidget {"
         "   background-color: %1;"
         "   border: 1px solid %2;"
-        "   border-radius: 6px;"
+        "   border-radius: 0px;"
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
     
     // Use scroll area for long manufacturer lists
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(1, 1, 1, 1);  // Small margin for border outline
+    mainLayout->setSpacing(0);
     
     QScrollArea* scrollArea = new QScrollArea();
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet(
+    scrollArea->setStyleSheet(QString(
         "QScrollArea {"
         "   background-color: transparent;"
         "   border: none;"
-        "   border-radius: 5px;"
+        "   border-radius: 0px;"
         "}"
         "QScrollArea > QWidget > QWidget {"
         "   background-color: transparent;"
         "}"
-    );
+    ) + AppTheme::scrollbarStyleSheet());
     
     QWidget* contentWidget = new QWidget();
-    contentWidget->setStyleSheet("background: transparent;");
+    contentWidget->setStyleSheet("background-color: transparent;");
     
     QVBoxLayout* layout = new QVBoxLayout(contentWidget);
     layout->setContentsMargins(12, 12, 12, 12);

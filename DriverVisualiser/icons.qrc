@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/chevron-down.svg</file>
+        <file>icons/chevron-right.svg</file>
+        <file>icons/copy.svg</file>
+        <file>icons/file-download.svg</file>
+        <file>icons/file-type-html.svg</file>
+        <file>icons/file-type-txt.svg</file>
+        <file>icons/folder.svg</file>
+        <file>icons/info-circle.svg</file>
+        <file>icons/refresh-dot.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/square-rounded-check.svg</file>
+    </qresource>
+</RCC>

@@ -7,6 +7,7 @@
 #include "ErrorLogIndicatorWidget.h"
 #include "DriverInfoPopup.h"
 #include "AppTheme.h"
+#include "IconProvider.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -175,19 +176,29 @@ void DriverCardWidget::setupUi(const DriverInfo& driver)
 
     // ── 5. Info button ────────────────────────────────────────────────────────
     contentLayout->addSpacing(8);
-    QPushButton* infoButton = new QPushButton("ⓘ");
-    infoButton->setFixedSize(22, 22);
+    QPushButton* infoButton = new QPushButton();
+    infoButton->setIcon(IconProvider::icon(
+        IconProvider::InfoCircle,
+        AppTheme::colors().textMuted,
+        22  // Larger, more visible
+    ));
+    infoButton->setIconSize(QSize(22, 22));
+    infoButton->setFixedSize(28, 28);  // Slightly larger button
     infoButton->setFlat(true);
     infoButton->setStyleSheet(QString(
         "QPushButton {"
-        "   color: %1;"
-        "   font-size: 15px;"
         "   border: none;"
         "   background: transparent;"
+        "   padding: 3px;"  // Add padding for better click area
         "}"
-        "QPushButton:hover { color: %2; }"
-        "QPushButton:pressed { color: %3; }"
-    ).arg(AppTheme::colors().textMuted, AppTheme::colors().accent, AppTheme::colors().accentDark));
+        "QPushButton:hover {"
+        "   background-color: %1;"
+        "   border-radius: 4px;"
+        "}"
+        "QPushButton:pressed {"
+        "   background-color: %2;"
+        "}"
+    ).arg(AppTheme::colors().bgHover, AppTheme::colors().bgBase));
     infoButton->setCursor(Qt::PointingHandCursor);
     infoButton->setToolTip("View technical details");
     connect(infoButton, &QPushButton::clicked, [this, infoButton]() {
