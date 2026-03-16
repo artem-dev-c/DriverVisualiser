@@ -8,6 +8,7 @@ std::vector<ProcessedCategory> CategoryProcessor::process(
     // Convert each category to ProcessedCategory with sorted drivers and health info
     for (const auto& [className, category] : categories) {
         ProcessedCategory processed;
+        processed.className = className;  // Store internal class name
         processed.displayName = category.displayName;
         processed.sortedDrivers = sortDrivers(category.drivers);
         processed.healthInfo = analyzeHealth(processed.sortedDrivers);

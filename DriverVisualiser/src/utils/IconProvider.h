@@ -25,6 +25,7 @@ class IconProvider
 public:
     /// Available icon types from Tabler icon set
     enum IconType {
+        // UI Icons
         ChevronDown,        ///< Dropdown/expand indicator
         ChevronRight,       ///< Collapse/navigate indicator
         Copy,               ///< Copy to clipboard action
@@ -35,7 +36,57 @@ public:
         RefreshDot,         ///< Refresh/rescan action
         Settings,           ///< Settings/configuration action
         SquareRoundedCheck, ///< Success/checkmark indicator
-        InfoCircle          ///< Information/details indicator
+        InfoCircle,         ///< Information/details indicator
+        
+        // Category Icons - Hardware
+        DeviceDesktop,      ///< Display adapters
+        Network,            ///< Network adapters
+        Volume,             ///< Audio & media devices
+        DeviceFloppy,       ///< Storage/disk drives
+        Usb,                ///< USB controllers
+        Cpu,                ///< Processors
+        Keyboard,           ///< Keyboards
+        Mouse,              ///< Mice & pointing devices
+        Camera,             ///< Cameras
+        Printer,            ///< Printers
+        Bluetooth,          ///< Bluetooth devices
+        Battery,            ///< Battery
+        Fingerprint,        ///< Biometric devices
+        CreditCard,         ///< Smart card readers
+        Radar,              ///< Sensors
+        Gps,                ///< GPS receivers
+        Router,             ///< Modems
+        AntennaBars,        ///< Infrared devices
+        
+        // Category Icons - System
+        DeviceLaptop,       ///< System devices
+        FileCode,           ///< Firmware
+        Components,         ///< Software components
+        ShieldLock,         ///< Security devices
+        Plug,               ///< Ports (COM & LPT)
+        Link,               ///< PCIe bus connectors
+        Box,                ///< Controllers
+        Stack,              ///< Multifunction devices
+        
+        // Category Icons - Storage & Media
+        Disc,               ///< CD/DVD drives
+        Archive,            ///< Tape drives
+        Folders,            ///< Storage volumes
+        
+        // Category Icons - Network
+        Users,              ///< Network clients
+        Cloud,              ///< Network services
+        Code,               ///< Network protocols
+        
+        // Category Icons - Filters & Special
+        Filter,             ///< File system filters
+        LockAccess,         ///< Encryption filters
+        
+        // Category Icons - Portable & Fallback
+        DeviceMobile,       ///< Portable devices
+        QuestionMark,       ///< Unknown devices
+        AlertTriangle,      ///< Devices without drivers
+        Clock               ///< Legacy drivers
     };
 
     /// Returns a QIcon for the specified icon type.

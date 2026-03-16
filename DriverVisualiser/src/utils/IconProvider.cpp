@@ -13,6 +13,7 @@ QMap<QString, QIcon> IconProvider::s_cache;
 QString IconProvider::iconPath(IconType type)
 {
     switch (type) {
+        // UI Icons
         case ChevronDown:        return ":/icons/chevron-down.svg";
         case ChevronRight:       return ":/icons/chevron-right.svg";
         case Copy:               return ":/icons/copy.svg";
@@ -24,6 +25,57 @@ QString IconProvider::iconPath(IconType type)
         case Settings:           return ":/icons/settings.svg";
         case SquareRoundedCheck: return ":/icons/square-rounded-check.svg";
         case InfoCircle:         return ":/icons/info-circle.svg";
+        
+        // Category Icons - Hardware
+        case DeviceDesktop:      return ":/icons/device-desktop.svg";
+        case Network:            return ":/icons/network.svg";
+        case Volume:             return ":/icons/volume.svg";
+        case DeviceFloppy:       return ":/icons/device-floppy.svg";
+        case Usb:                return ":/icons/usb.svg";
+        case Cpu:                return ":/icons/cpu.svg";
+        case Keyboard:           return ":/icons/keyboard.svg";
+        case Mouse:              return ":/icons/mouse.svg";
+        case Camera:             return ":/icons/camera.svg";
+        case Printer:            return ":/icons/printer.svg";
+        case Bluetooth:          return ":/icons/bluetooth.svg";
+        case Battery:            return ":/icons/battery-1.svg";
+        case Fingerprint:        return ":/icons/fingerprint.svg";
+        case CreditCard:         return ":/icons/credit-card.svg";
+        case Radar:              return ":/icons/radar.svg";
+        case Gps:                return ":/icons/gps.svg";
+        case Router:             return ":/icons/router.svg";
+        case AntennaBars:        return ":/icons/antenna-bars-5.svg";
+        
+        // Category Icons - System
+        case DeviceLaptop:       return ":/icons/device-laptop.svg";
+        case FileCode:           return ":/icons/file-code.svg";
+        case Components:         return ":/icons/components.svg";
+        case ShieldLock:         return ":/icons/shield-lock.svg";
+        case Plug:               return ":/icons/plug.svg";
+        case Link:               return ":/icons/link.svg";
+        case Box:                return ":/icons/box.svg";
+        case Stack:              return ":/icons/stack.svg";
+        
+        // Category Icons - Storage & Media
+        case Disc:               return ":/icons/disc.svg";
+        case Archive:            return ":/icons/archive.svg";
+        case Folders:            return ":/icons/folders.svg";
+        
+        // Category Icons - Network
+        case Users:              return ":/icons/users.svg";
+        case Cloud:              return ":/icons/cloud.svg";
+        case Code:               return ":/icons/code.svg";
+        
+        // Category Icons - Filters & Special
+        case Filter:             return ":/icons/filter.svg";
+        case LockAccess:         return ":/icons/lock-access.svg";
+        
+        // Category Icons - Portable & Fallback
+        case DeviceMobile:       return ":/icons/device-mobile.svg";
+        case QuestionMark:       return ":/icons/question-mark.svg";
+        case AlertTriangle:      return ":/icons/alert-triangle.svg";
+        case Clock:              return ":/icons/clock.svg";
+        
         default:                 return QString();
     }
 }

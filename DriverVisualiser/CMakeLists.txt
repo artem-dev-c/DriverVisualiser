@@ -81,6 +81,10 @@ set(PROJECT_SOURCES
     src/utils/IconProvider.cpp
     src/utils/IconProvider.h
 
+    # Utils - Category Icon Mapper
+    src/utils/CategoryIconMapper.cpp
+    src/utils/CategoryIconMapper.h
+
     # UI - Widgets
     src/ui/widgets/CategorySectionWidget.cpp
     src/ui/widgets/CategorySectionWidget.h

@@ -18,7 +18,8 @@ struct CategoryHealthInfo {
 
 /// Processed category ready for UI display
 struct ProcessedCategory {
-    std::wstring displayName;
+    std::wstring className;     // Internal class name (e.g., "Display", "Net")
+    std::wstring displayName;   // User-friendly name
     std::vector<DriverInfo> sortedDrivers;  // Already sorted
     CategoryHealthInfo healthInfo;
 };

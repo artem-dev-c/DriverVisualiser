@@ -168,12 +168,12 @@ QWidget* ErrorLogPopupWidget::createLogRow(const ErrorLogEntry& entry)
     QLabel* msgLabel = new QLabel(message);
     msgLabel->setWordWrap(true);
     msgLabel->setStyleSheet(QString(
-        "color: rgba(255, 255, 255, 0.7);"
+        "color: %1;"
         "font-size: 11px;"
         "line-height: 1.4;"
         "background: transparent;"
         "border: none;"
-    ));
+    ).arg(AppTheme::colors().textSecondary));  // Use textSecondary for subtle but visible text
     layout->addWidget(msgLabel);
     
     // Styling: subtle card with border

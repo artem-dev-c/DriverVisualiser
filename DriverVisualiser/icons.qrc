@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <!-- UI Icons -->
         <file>icons/chevron-down.svg</file>
         <file>icons/chevron-right.svg</file>
         <file>icons/copy.svg</file>
@@ -11,5 +12,55 @@
         <file>icons/refresh-dot.svg</file>
         <file>icons/settings.svg</file>
         <file>icons/square-rounded-check.svg</file>
+        
+        <!-- Category Icons - Hardware -->
+        <file>icons/device-desktop.svg</file>
+        <file>icons/network.svg</file>
+        <file>icons/volume.svg</file>
+        <file>icons/device-floppy.svg</file>
+        <file>icons/usb.svg</file>
+        <file>icons/cpu.svg</file>
+        <file>icons/keyboard.svg</file>
+        <file>icons/mouse.svg</file>
+        <file>icons/camera.svg</file>
+        <file>icons/printer.svg</file>
+        <file>icons/bluetooth.svg</file>
+        <file>icons/battery-1.svg</file>
+        <file>icons/fingerprint.svg</file>
+        <file>icons/credit-card.svg</file>
+        <file>icons/radar.svg</file>
+        <file>icons/gps.svg</file>
+        <file>icons/router.svg</file>
+        <file>icons/antenna-bars-5.svg</file>
+        
+        <!-- Category Icons - System -->
+        <file>icons/device-laptop.svg</file>
+        <file>icons/file-code.svg</file>
+        <file>icons/components.svg</file>
+        <file>icons/shield-lock.svg</file>
+        <file>icons/plug.svg</file>
+        <file>icons/link.svg</file>
+        <file>icons/box.svg</file>
+        <file>icons/stack.svg</file>
+        
+        <!-- Category Icons - Storage & Media -->
+        <file>icons/disc.svg</file>
+        <file>icons/archive.svg</file>
+        <file>icons/folders.svg</file>
+        
+        <!-- Category Icons - Network -->
+        <file>icons/users.svg</file>
+        <file>icons/cloud.svg</file>
+        <file>icons/code.svg</file>
+        
+        <!-- Category Icons - Filters & Special -->
+        <file>icons/filter.svg</file>
+        <file>icons/lock-access.svg</file>
+        
+        <!-- Category Icons - Portable & Fallback -->
+        <file>icons/device-mobile.svg</file>
+        <file>icons/question-mark.svg</file>
+        <file>icons/alert-triangle.svg</file>
+        <file>icons/clock.svg</file>
     </qresource>
 </RCC>

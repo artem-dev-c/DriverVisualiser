@@ -2,6 +2,7 @@
 #include "DriverCardWidget.h"
 #include "AppTheme.h"
 #include "IconProvider.h"
+#include "CategoryIconMapper.h"
 #include <QHBoxLayout>
 
 CategorySectionWidget::CategorySectionWidget(const ProcessedCategory& category,
@@ -52,14 +53,14 @@ void CategorySectionWidget::setupUi()
 
     // Toggle button with SVG icon
     m_toggleButton = new QPushButton();
-    m_toggleButton->setFixedSize(24, 24);
+    m_toggleButton->setFixedSize(28, 28);  // Larger button
     m_toggleButton->setFlat(true);
     m_toggleButton->setIcon(IconProvider::icon(
         m_expanded ? IconProvider::ChevronDown : IconProvider::ChevronRight,
         AppTheme::colors().textSecondary,
-        20  // Slightly smaller than button for padding
+        24  // Larger icon
     ));
-    m_toggleButton->setIconSize(QSize(20, 20));
+    m_toggleButton->setIconSize(QSize(24, 24));
     m_toggleButton->setStyleSheet(QString(
         "QPushButton { "
         "   border: none; "
@@ -71,6 +72,19 @@ void CategorySectionWidget::setupUi()
     ));
     connect(m_toggleButton, &QPushButton::clicked, this, &CategorySectionWidget::toggleExpanded);
     headerLayout->addWidget(m_toggleButton);
+    
+    // Category icon - larger, no border, just an image
+    QString className = QString::fromStdWString(m_category.className);
+    IconProvider::IconType categoryIconType = CategoryIconMapper::iconForCategory(className);
+    QLabel* categoryIconLabel = new QLabel();
+    categoryIconLabel->setPixmap(IconProvider::icon(
+        categoryIconType,
+        AppTheme::colors().textSecondary,
+        30  
+    ).pixmap(30, 30));
+    categoryIconLabel->setFixedSize(30, 30);
+    categoryIconLabel->setStyleSheet("border: none; background: transparent; padding: 0px;");
+    headerLayout->addWidget(categoryIconLabel);
 
     // Title - BOLD WHITE, no background, no border
     QString titleText = QString::fromStdWString(m_category.displayName);
@@ -231,6 +245,6 @@ void CategorySectionWidget::updateToggleButton()
     m_toggleButton->setIcon(IconProvider::icon(
         m_expanded ? IconProvider::ChevronDown : IconProvider::ChevronRight,
         c.textSecondary,
-        20
+        24
     ));
 }
