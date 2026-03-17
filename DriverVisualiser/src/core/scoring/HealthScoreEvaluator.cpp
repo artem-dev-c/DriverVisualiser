@@ -60,6 +60,13 @@ void HealthScoreEvaluator::evaluateCriticalFlags(const DriverInfo& driver, Healt
         addFlag(result, L"PROBLEM_CODE_CRITICAL", getProblemCodeDescription(driver.problemCode),
                 HealthFlagSeverity::Critical, PENALTY_CRITICAL);
     }
+
+    // NOTE: File integrity check removed
+    // Reason: Cannot reliably determine which drivers require .sys files
+    // - Composite/software devices legitimately have no .sys
+    // - Service registry lookup is unreliable
+    // - False positive rate too high
+    // Solution: .sys paths are shown in DriverInfoPopup for manual verification
 }
 
 // ============================================================================

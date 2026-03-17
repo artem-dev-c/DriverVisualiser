@@ -269,7 +269,7 @@ std::vector<std::wstring> DriverScanner::getDriverFiles(HDEVINFO hDevInfo, PSP_D
         return files;
     }
     
-    // Get driver detail info (includes file paths)
+    // Get driver detail info (includes INF path)
     DWORD requiredSize = 0;
     SetupDiGetDriverInfoDetailW(hDevInfo, devInfoData, &drvInfoData, nullptr, 0, &requiredSize);
     
@@ -281,30 +281,72 @@ std::vector<std::wstring> DriverScanner::getDriverFiles(HDEVINFO hDevInfo, PSP_D
         
         if (SetupDiGetDriverInfoDetailW(hDevInfo, devInfoData, &drvInfoData, 
                                          detailData, requiredSize, nullptr)) {
-            // The InfFileName contains the FULL path to the INF in DriverStore
+            // Add INF file path
             if (detailData->InfFileName[0] != L'\0') {
-                std::wstring fullInfPath = detailData->InfFileName;
-                files.push_back(fullInfPath);
+                files.push_back(detailData->InfFileName);
+            }
+        }
+    }
+    
+    // Now get the actual .sys file from the service registry
+    // Get the service name for this device
+    DWORD serviceNameSize = 0;
+    SetupDiGetDeviceRegistryPropertyW(hDevInfo, devInfoData, SPDRP_SERVICE, 
+                                      nullptr, nullptr, 0, &serviceNameSize);
+    
+    if (serviceNameSize > 0) {
+        std::vector<BYTE> serviceBuffer(serviceNameSize);
+        DWORD propertyType = 0;
+        
+        if (SetupDiGetDeviceRegistryPropertyW(hDevInfo, devInfoData, SPDRP_SERVICE, 
+                                              &propertyType, serviceBuffer.data(), 
+                                              serviceNameSize, nullptr)) {
+            std::wstring serviceName = reinterpret_cast<LPCWSTR>(serviceBuffer.data());
+            
+            // Query the service registry to get the .sys file path
+            std::wstring serviceRegPath = L"SYSTEM\\CurrentControlSet\\Services\\" + serviceName;
+            HKEY hServiceKey = nullptr;
+            
+            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, serviceRegPath.c_str(), 0, 
+                             KEY_QUERY_VALUE, &hServiceKey) == ERROR_SUCCESS) {
                 
-                // Extract directory from full INF path
-                size_t lastSlash = fullInfPath.find_last_of(L"\\");
-                if (lastSlash != std::wstring::npos) {
-                    std::wstring infDir = fullInfPath.substr(0, lastSlash);
+                // Get ImagePath value (contains the .sys file path)
+                DWORD imagePathSize = 0;
+                DWORD valueType = 0;
+                
+                if (RegQueryValueExW(hServiceKey, L"ImagePath", nullptr, &valueType, 
+                                    nullptr, &imagePathSize) == ERROR_SUCCESS) {
                     
-                    // Find all .sys files in the same directory
-                    std::wstring sysPattern = infDir + L"\\*.sys";
+                    std::vector<BYTE> imagePathBuffer(imagePathSize);
                     
-                    WIN32_FIND_DATAW findData;
-                    HANDLE hFind = FindFirstFileW(sysPattern.c_str(), &findData);
-                    
-                    if (hFind != INVALID_HANDLE_VALUE) {
-                        do {
-                            std::wstring sysPath = infDir + L"\\" + findData.cFileName;
-                            files.push_back(sysPath);
-                        } while (FindNextFileW(hFind, &findData));
-                        FindClose(hFind);
+                    if (RegQueryValueExW(hServiceKey, L"ImagePath", nullptr, &valueType,
+                                        imagePathBuffer.data(), &imagePathSize) == ERROR_SUCCESS) {
+                        
+                        std::wstring imagePath = reinterpret_cast<LPCWSTR>(imagePathBuffer.data());
+                        
+                        // ImagePath might be relative like "system32\drivers\xyz.sys"
+                        // Convert to absolute path
+                        if (imagePath.find(L':') == std::wstring::npos) {
+                            // Relative path - prepend Windows directory
+                            wchar_t winDir[MAX_PATH];
+                            if (GetWindowsDirectoryW(winDir, MAX_PATH) > 0) {
+                                imagePath = std::wstring(winDir) + L"\\" + imagePath;
+                            }
+                        }
+                        
+                        // Clean up path (remove \??\ prefix if present)
+                        if (imagePath.starts_with(L"\\??\\")) {
+                            imagePath = imagePath.substr(4);
+                        }
+                        
+                        // Only add if it's a .sys file
+                        if (imagePath.ends_with(L".sys") || imagePath.ends_with(L".SYS")) {
+                            files.push_back(imagePath);
+                        }
                     }
                 }
+                
+                RegCloseKey(hServiceKey);
             }
         }
     }

@@ -150,6 +150,32 @@ void DriverInfoPopup::setupUi(const DriverInfo& driver)
     }
     layout->addWidget(createCopyableFieldRow("INF Path", infPath));
     
+    // SYS File(s) - extract .sys files from driverFiles
+    QStringList sysFiles;
+    if (!driver.driverFiles.empty()) {
+        for (const auto& file : driver.driverFiles) {
+            QString filepath = QString::fromStdWString(file);
+            if (filepath.endsWith(".sys", Qt::CaseInsensitive)) {
+                sysFiles.append(filepath);
+            }
+        }
+    }
+    
+    if (!sysFiles.isEmpty()) {
+        // Show first .sys file as copyable field
+        layout->addWidget(createCopyableFieldRow("SYS File", sysFiles.first()));
+        
+        // If there are multiple .sys files, show count
+        if (sysFiles.size() > 1) {
+            QString additionalInfo = QString("(+%1 more)").arg(sysFiles.size() - 1);
+            QLabel* extraLabel = new QLabel(additionalInfo);
+            extraLabel->setStyleSheet(QString(
+                "color: %1; font-size: 10px; padding-left: 90px; background: transparent; border: none;"
+            ).arg(AppTheme::colors().textMuted));
+            layout->addWidget(extraLabel);
+        }
+    }
+    
     layout->addSpacing(8);
     
     // === Status Information Section ===
@@ -470,7 +496,30 @@ QString DriverInfoPopup::generateFullReport(const DriverInfo& driver, const Syst
             infPathReport = firstFile;
         }
     }
-    report += QString("INF Path:     %1\n\n").arg(infPathReport);
+    report += QString("INF Path:     %1\n").arg(infPathReport);
+    
+    // SYS File(s) - extract .sys files from driverFiles
+    if (!driver.driverFiles.empty()) {
+        QStringList sysFiles;
+        for (const auto& file : driver.driverFiles) {
+            QString filepath = QString::fromStdWString(file);
+            if (filepath.endsWith(".sys", Qt::CaseInsensitive)) {
+                sysFiles.append(filepath);
+            }
+        }
+        
+        if (!sysFiles.isEmpty()) {
+            if (sysFiles.size() == 1) {
+                report += QString("SYS File:     %1\n").arg(sysFiles.first());
+            } else {
+                report += QString("SYS Files:    %1\n").arg(sysFiles.first());
+                for (int i = 1; i < sysFiles.size(); ++i) {
+                    report += QString("              %1\n").arg(sysFiles[i]);
+                }
+            }
+        }
+    }
+    report += "\n";
     
     // Status Information
     report += "STATUS INFORMATION\n";
