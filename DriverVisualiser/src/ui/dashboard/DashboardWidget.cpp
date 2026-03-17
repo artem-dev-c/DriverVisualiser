@@ -2,8 +2,8 @@
 #include "AppTheme.h"
 #include "ScoreRingWidget.h"
 #include "IssueListWidget.h"
+#include "EventTimelineWidget.h"
 #include "SystemHealthSummary.h"
-#include "IconProvider.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -203,13 +203,13 @@ QWidget* DashboardWidget::buildControlColumn()
         return btn;
     };
 
-    m_log7Button  = makeToggleButton("7d",  7);
-    m_log30Button = makeToggleButton("30d", 30);
+    m_log30Button  = makeToggleButton("30d",  30);
     m_log90Button = makeToggleButton("90d", 90);
+    m_log180Button = makeToggleButton("180d", 180);
 
-    toggleLayout->addWidget(m_log7Button);
     toggleLayout->addWidget(m_log30Button);
     toggleLayout->addWidget(m_log90Button);
+    toggleLayout->addWidget(m_log180Button);
     toggleLayout->addStretch();
 
     layout->addLayout(toggleLayout);
@@ -226,13 +226,7 @@ QWidget* DashboardWidget::buildControlColumn()
     layout->addSpacing(8);
 
     // === Rescan button ===
-    m_rescanButton = new QPushButton("  Scan Drivers");
-    m_rescanButton->setIcon(IconProvider::icon(
-        IconProvider::RefreshDot,
-        AppTheme::colors().textSecondary,
-        20  // Increased from 18
-    ));
-    m_rescanButton->setIconSize(QSize(20, 20));
+    m_rescanButton = new QPushButton("⟳  Scan Drivers");
     m_rescanButton->setFixedHeight(32);
     m_rescanButton->setStyleSheet(QString(
         "QPushButton {"
@@ -263,13 +257,7 @@ QWidget* DashboardWidget::buildControlColumn()
     layout->addSpacing(6);
 
     // === Generate Report button with format menu ===
-    m_reportButton = new QPushButton("  Generate Report");
-    m_reportButton->setIcon(IconProvider::icon(
-        IconProvider::FileDownload,
-        AppTheme::colors().accentText,
-        20  // Increased from 18
-    ));
-    m_reportButton->setIconSize(QSize(20, 20));
+    m_reportButton = new QPushButton("📄  Generate Report");
     m_reportButton->setFixedHeight(32);
     m_reportButton->setStyleSheet(QString(
         "QPushButton {"
@@ -318,27 +306,12 @@ QWidget* DashboardWidget::buildControlColumn()
         "   background-color: %4;"
         "   color: %5;"
         "}"
-    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong,
+    ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderActive,
           AppTheme::colors().textPrimary, AppTheme::colors().accentBg,
           AppTheme::colors().accentText));
     
-    QAction* textAction = new QAction(m_reportButton);
-    textAction->setText(" Text Report (.txt)");  
-    textAction->setIcon(IconProvider::icon(
-        IconProvider::FileTypeTxt,
-        AppTheme::colors().textPrimary,
-        20  // Larger icon
-    ));
-    reportMenu->addAction(textAction);
-    
-    QAction* htmlAction = new QAction(m_reportButton);
-    htmlAction->setText(" Interactive HTML (.html)");
-    htmlAction->setIcon(IconProvider::icon(
-        IconProvider::FileTypeHtml,
-        AppTheme::colors().textPrimary,
-        20  // Larger icon
-    ));
-    reportMenu->addAction(htmlAction);
+    QAction* textAction = reportMenu->addAction("📄 Text Report (.txt)");
+    QAction* htmlAction = reportMenu->addAction("🌐 Interactive HTML (.html)");
     
     connect(textAction, &QAction::triggered, this, [this]() {
         emit reportRequested(ReportFormat::Text);
@@ -453,9 +426,9 @@ void DashboardWidget::updateLogWindowButtons()
     ).arg(AppTheme::colors().bgBase, AppTheme::colors().accentText,
           AppTheme::colors().accent);
 
-    m_log7Button->setStyleSheet( m_selectedLogDays == 7   ? activeStyle : inactiveStyle);
-    m_log30Button->setStyleSheet(m_selectedLogDays == 30  ? activeStyle : inactiveStyle);
+    m_log30Button->setStyleSheet( m_selectedLogDays == 30   ? activeStyle : inactiveStyle);
     m_log90Button->setStyleSheet(m_selectedLogDays == 90  ? activeStyle : inactiveStyle);
+    m_log180Button->setStyleSheet(m_selectedLogDays == 180  ? activeStyle : inactiveStyle);
 }
 
 // ============================================================================
@@ -481,7 +454,7 @@ void DashboardWidget::setScanButtonEnabled(bool enabled)
 {
     if (m_rescanButton) {
         m_rescanButton->setEnabled(enabled);
-        m_rescanButton->setText(enabled ? "  Scan Drivers" : "  Scanning...");
+        m_rescanButton->setText(enabled ? "⟳  Scan Drivers" : "⟳  Scanning...");
     }
 }
 

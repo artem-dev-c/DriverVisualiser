@@ -498,35 +498,34 @@ void EventTimelineWidget::showTooltip(const QPoint& pos, const DayData& day)
         day.date.toString("MMMM d, yyyy")
     );
 
-    // Add counts with colored rectangle badges
+    // Add counts with EMPTY colored badges NEXT TO colored text
     if (day.criticalCount > 0) {
         html += QString(
-            "<div style='margin: 4px 0;'>"
-            "<span style='display: inline-block; width: 12px; height: 12px; "
-            "background-color: #e74c3c; border-radius: 3px; margin-right: 8px; vertical-align: middle;'></span>"
-            "<span style='color: %1; vertical-align: middle;'>%2 Critical</span>"
+            "<div style='margin: 4px 0; display: flex; align-items: center;'>"
+            "<span style='display: inline-block; background-color: rgba(231, 76, 60, 0.2); "
+            "border-radius: 4px; padding: 4px 10px; margin-right: 8px;'></span>"
+            "<span style='color: #e74c3c; font-weight: bold; font-size: 10px;'>%1 Critical</span>"
             "</div>"
-        ).arg(AppTheme::colors().textPrimary).arg(day.criticalCount);
+        ).arg(day.criticalCount);
     }
     if (day.warningCount > 0) {
         html += QString(
-            "<div style='margin: 4px 0;'>"
-            "<span style='display: inline-block; width: 12px; height: 12px; "
-            "background-color: #f39c12; border-radius: 3px; margin-right: 8px; vertical-align: middle;'></span>"
-            "<span style='color: %1; vertical-align: middle;'>%2 Warning%3</span>"
+            "<div style='margin: 4px 0; display: flex; align-items: center;'>"
+            "<span style='display: inline-block; background-color: rgba(243, 156, 18, 0.2); "
+            "border-radius: 4px; padding: 4px 10px; margin-right: 8px;'></span>"
+            "<span style='color: #f39c12; font-weight: bold; font-size: 10px;'>%1 Warning%2</span>"
             "</div>"
-        ).arg(AppTheme::colors().textPrimary)
-         .arg(day.warningCount)
+        ).arg(day.warningCount)
          .arg(day.warningCount > 1 ? "s" : "");
     }
     if (day.infoCount > 0) {
         html += QString(
-            "<div style='margin: 4px 0;'>"
-            "<span style='display: inline-block; width: 12px; height: 12px; "
-            "background-color: #5dade2; border-radius: 3px; margin-right: 8px; vertical-align: middle;'></span>"
-            "<span style='color: %1; vertical-align: middle;'>%2 Info</span>"
+            "<div style='margin: 4px 0; display: flex; align-items: center;'>"
+            "<span style='display: inline-block; background-color: rgba(93, 173, 226, 0.2); "
+            "border-radius: 4px; padding: 4px 10px; margin-right: 8px;'></span>"
+            "<span style='color: #5dade2; font-weight: bold; font-size: 10px;'>%1 Info</span>"
             "</div>"
-        ).arg(AppTheme::colors().textPrimary).arg(day.infoCount);
+        ).arg(day.infoCount);
     }
 
     // Hint text at bottom

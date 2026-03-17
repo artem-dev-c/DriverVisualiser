@@ -112,10 +112,10 @@ private:
     QPushButton* m_rescanButton   = nullptr;
     QPushButton* m_reportButton   = nullptr;
 
-    // Log window toggle buttons (7 / 30 / 90)
-    QPushButton* m_log7Button  = nullptr;
-    QPushButton* m_log30Button = nullptr;
+    // Log window toggle buttons (30 / 90 / 180 days)
+    QPushButton* m_log30Button  = nullptr;
     QPushButton* m_log90Button = nullptr;
+    QPushButton* m_log180Button = nullptr;
 
-    int m_selectedLogDays = 7;  ///< Currently selected log window (default: 7 days)
+    int m_selectedLogDays = 30;  ///< Currently selected log window (default: 30 days)
 };

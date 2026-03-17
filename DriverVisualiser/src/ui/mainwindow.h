@@ -61,5 +61,5 @@ private:
     // --- Data ---
     std::vector<DriverInfo> m_allDrivers;
     SystemInfo              m_systemInfo;
-    int                     m_selectedLogDays = 7;
+    int                     m_selectedLogDays = 30;  // Default: 30 days
 };

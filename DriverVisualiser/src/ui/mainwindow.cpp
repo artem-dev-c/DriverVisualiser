@@ -127,6 +127,9 @@ std::vector<DriverInfo> MainWindow::performScan(int logDays)
     ErrorLogReader::populateErrorLogs(drivers, logDays);
 
     for (auto& driver : drivers) {
+        // Store the scan window used for error logs
+        driver.errorLogWindowDays = logDays;
+        
         if (driver.importanceLevel == DriverImportance::Unknown) {
             driver.importanceLevel = DriverImportanceEvaluator::evaluate(driver);
         }
@@ -326,12 +329,14 @@ void MainWindow::populateDriverList()
     // Event Timeline Graph
     // =========================================================================
 
-    // Aggregate all error logs from all drivers
+    // Aggregate all error logs from all drivers and populate driver names
     std::vector<ErrorLogEntry> allErrorLogs;
     for (const auto& driver : m_allDrivers) {
-        allErrorLogs.insert(allErrorLogs.end(), 
-                           driver.errorLog.begin(), 
-                           driver.errorLog.end());
+        for (auto entry : driver.errorLog) {
+            // Add driver name to each error log entry
+            entry.driverName = driver.name;
+            allErrorLogs.push_back(entry);
+        }
     }
 
     EventTimelineWidget* timeline = new EventTimelineWidget();
@@ -374,6 +379,25 @@ void MainWindow::populateDriverList()
     }
 
     contentLayout->addStretch();
+
+    // =========================================================================
+    // Footer Note
+    // =========================================================================
+    
+    QLabel* footerLabel = new QLabel("Driver Visualiser - Keeping your drivers in check since 2026");
+    QFont footerFont = footerLabel->font();
+    footerFont.setPointSize(8);
+    footerFont.setItalic(true);
+    footerLabel->setFont(footerFont);
+    footerLabel->setAlignment(Qt::AlignCenter);
+    footerLabel->setStyleSheet(QString(
+        "QLabel {"
+        "   color: %1;"
+        "   background: transparent;"
+        "   padding: 16px 0px 8px 0px;"
+        "}"
+    ).arg(AppTheme::colors().textMuted));
+    contentLayout->addWidget(footerLabel);
 
     outerWrapperLayout->addWidget(contentWidget, 70);
     outerWrapperLayout->addStretch(15);

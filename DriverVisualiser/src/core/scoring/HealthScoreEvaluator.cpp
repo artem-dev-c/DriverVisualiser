@@ -17,7 +17,11 @@ namespace {
     constexpr int PENALTY_CAUTION_LOW = -2;
     constexpr int PENALTY_NONE = 0;
 
-    constexpr int OUTDATED_THRESHOLD_DAYS = 1095;  // ~3 years
+    // Graduated age thresholds (days)
+    constexpr int AGE_2_YEARS = 730;   // Aging - minor concern
+    constexpr int AGE_3_YEARS = 1095;  // Outdated - moderate concern
+    constexpr int AGE_5_YEARS = 1825;  // Very old - significant concern
+    constexpr int AGE_7_YEARS = 2555;  // Ancient - critical security risk
 }
 
 // ============================================================================
@@ -30,7 +34,8 @@ HealthResult HealthScoreEvaluator::evaluate(const DriverInfo& driver)
     result.score = 100;
 
     evaluateCriticalFlags(driver, result);
-    evaluateWarningFlags(driver, result);
+    evaluateErrorLogFrequency(driver, result);  // MOVED UP - evaluate before warning flags
+    evaluateWarningFlags(driver, result);        // Now includes outdated driver
     evaluateCautionFlags(driver, result);
     evaluateInfoFlags(driver, result);
 
@@ -71,8 +76,29 @@ void HealthScoreEvaluator::evaluateWarningFlags(const DriverInfo& driver, Health
 
     // Ghost device (not physically present)
     if (!driver.isPresent) {
-        addFlag(result, L"GHOST_DEVICE", L"Device is not physically present",
-                HealthFlagSeverity::Warning, PENALTY_WARNING);
+        // Check how long it's been gone (estimate from install date)
+        bool isStaleGhost = false;
+        
+        if (driver.installDate.has_value()) {
+            auto now = std::chrono::system_clock::now();
+            auto nowDays = std::chrono::floor<std::chrono::days>(now);
+            auto age = nowDays - driver.installDate.value();
+            
+            // If installed 6+ months ago and still not present, it's stale
+            if (age.count() > 180) {
+                isStaleGhost = true;
+            }
+        }
+        
+        if (isStaleGhost) {
+            addFlag(result, L"GHOST_DEVICE_STALE", 
+                    L"Device not present for 6+ months (safe to remove)",
+                    HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
+        } else {
+            addFlag(result, L"GHOST_DEVICE", 
+                    L"Device is not physically present",
+                    HealthFlagSeverity::Warning, PENALTY_WARNING);
+        }
     }
 
     // Needs restart
@@ -82,7 +108,9 @@ void HealthScoreEvaluator::evaluateWarningFlags(const DriverInfo& driver, Health
     }
 
     // Device disconnected (only if not already flagged as ghost)
-    if ((driver.rawStatus & DN_DEVICE_DISCONNECTED) && !hasFlag(result, L"GHOST_DEVICE")) {
+    if ((driver.rawStatus & DN_DEVICE_DISCONNECTED) && 
+        !hasFlag(result, L"GHOST_DEVICE") && 
+        !hasFlag(result, L"GHOST_DEVICE_STALE")) {
         addFlag(result, L"DEVICE_DISCONNECTED", L"Device is disconnected",
                 HealthFlagSeverity::Warning, PENALTY_WARNING);
     }
@@ -111,14 +139,44 @@ void HealthScoreEvaluator::evaluateOutdatedDriver(const DriverInfo& driver, Heal
     auto now = std::chrono::system_clock::now();
     auto nowDays = std::chrono::floor<std::chrono::days>(now);
     auto age = nowDays - *dateToCheck;
+    int ageDays = static_cast<int>(age.count());
 
-    if (age.count() > OUTDATED_THRESHOLD_DAYS) {
+    // Graduated penalties based on age
+    if (ageDays > AGE_7_YEARS) {
+        // 7+ years - ancient, critical security risk
         std::wstring description = usingInstallDate
-            ? L"Driver is at least 3 years old (based on install date)"
+            ? L"Driver is more than 7 years old (critical security risk, based on install date)"
+            : L"Driver is more than 7 years old (critical security risk)";
+        
+        addFlag(result, L"OUTDATED_DRIVER_ANCIENT", description,
+                HealthFlagSeverity::Warning, PENALTY_WARNING_HIGH);
+                
+    } else if (ageDays > AGE_5_YEARS) {
+        // 5+ years - very old
+        std::wstring description = usingInstallDate
+            ? L"Driver is more than 5 years old (based on install date)"
+            : L"Driver is more than 5 years old";
+        
+        addFlag(result, L"OUTDATED_DRIVER_VERY_OLD", description,
+                HealthFlagSeverity::Warning, -12);
+                
+    } else if (ageDays > AGE_3_YEARS) {
+        // 3+ years - outdated
+        std::wstring description = usingInstallDate
+            ? L"Driver is more than 3 years old (based on install date)"
             : L"Driver is more than 3 years old";
-
+        
         addFlag(result, L"OUTDATED_DRIVER", description,
                 HealthFlagSeverity::Warning, PENALTY_WARNING);
+                
+    } else if (ageDays > AGE_2_YEARS) {
+        // 2+ years - aging
+        std::wstring description = usingInstallDate
+            ? L"Driver is more than 2 years old (based on install date)"
+            : L"Driver is more than 2 years old";
+        
+        addFlag(result, L"OUTDATED_DRIVER_AGING", description,
+                HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
     }
 }
 
@@ -128,22 +186,44 @@ void HealthScoreEvaluator::evaluateOutdatedDriver(const DriverInfo& driver, Heal
 
 void HealthScoreEvaluator::evaluateCautionFlags(const DriverInfo& driver, HealthResult& result)
 {
-    // No version info
+    // No version info - escalate penalty for critical devices
     if (!driver.version.hasVersion) {
-        addFlag(result, L"NO_VERSION_INFO", L"No version information available",
-                HealthFlagSeverity::Caution, PENALTY_CAUTION_HIGH);
+        if (driver.importanceLevel == DriverImportance::Critical) {
+            addFlag(result, L"NO_VERSION_INFO_CRITICAL", 
+                    L"Critical device has no version information (risky)",
+                    HealthFlagSeverity::Warning, -8);
+        } else {
+            addFlag(result, L"NO_VERSION_INFO", 
+                    L"No version information available",
+                    HealthFlagSeverity::Caution, PENALTY_CAUTION_HIGH);
+        }
     }
 
-    // No driver date
+    // No driver date - escalate penalty for critical devices
     if (!driver.driverDate.has_value()) {
-        addFlag(result, L"NO_DRIVER_DATE", L"No driver date information available",
-                HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
+        if (driver.importanceLevel == DriverImportance::Critical) {
+            addFlag(result, L"NO_DRIVER_DATE_CRITICAL", 
+                    L"Critical device has no driver date (risky)",
+                    HealthFlagSeverity::Warning, PENALTY_CAUTION_HIGH);
+        } else {
+            addFlag(result, L"NO_DRIVER_DATE", 
+                    L"No driver date information available",
+                    HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
+        }
     }
 
-    // Unknown manufacturer
+    // Unknown manufacturer - escalate penalty for critical/important devices
     if (driver.manufacturer == L"Unknown" || driver.manufacturer.empty()) {
-        addFlag(result, L"UNKNOWN_MANUFACTURER", L"Manufacturer information is missing",
-                HealthFlagSeverity::Caution, PENALTY_CAUTION_LOW);
+        if (driver.importanceLevel == DriverImportance::Critical ||
+            driver.importanceLevel == DriverImportance::Important) {
+            addFlag(result, L"UNKNOWN_MANUFACTURER_IMPORTANT", 
+                    L"Important device has missing manufacturer information",
+                    HealthFlagSeverity::Caution, PENALTY_CAUTION_MED);
+        } else {
+            addFlag(result, L"UNKNOWN_MANUFACTURER", 
+                    L"Manufacturer information is missing",
+                    HealthFlagSeverity::Caution, PENALTY_CAUTION_LOW);
+        }
     }
 }
 
@@ -194,6 +274,135 @@ void HealthScoreEvaluator::evaluateInfoFlags(const DriverInfo& driver, HealthRes
         driver.manufacturer.find(L"Microsoft") != std::wstring::npos) {
         addFlag(result, L"GENERIC_DRIVER", L"Using Microsoft generic driver",
                 HealthFlagSeverity::Info, PENALTY_NONE);
+    }
+}
+
+// ============================================================================
+// Tier 5: Error Log Frequency Evaluation
+// ============================================================================
+
+// NOTE: These thresholds are educated guesses based on MVP development.
+// They should be tuned based on real-world telemetry and user feedback.
+// Consider collecting data on: error frequency vs driver failures, user reports,
+// and industry benchmarks to refine these values in future versions.
+
+void HealthScoreEvaluator::evaluateErrorLogFrequency(const DriverInfo& driver, HealthResult& result)
+{
+    if (driver.errorLog.empty()) {
+        return;  // No errors - healthy driver
+    }
+
+    // Count critical/error and warning events
+    int criticalCount = 0;
+    int warningCount = 0;
+
+    for (const auto& entry : driver.errorLog) {
+        if (entry.level == L"Critical" || entry.level == L"Error") {
+            criticalCount++;
+        } else if (entry.level == L"Warning") {
+            warningCount++;
+        }
+        // Ignore "Information" level events
+    }
+
+    // Use the actual scan window from the driver
+    int scanDays = driver.errorLogWindowDays;
+    
+    // Fallback: If we have timestamps and scanDays wasn't set, calculate actual coverage
+    if (driver.errorLog.size() >= 2 && scanDays <= 0) {
+        auto oldest = driver.errorLog.front().timestamp;
+        auto newest = driver.errorLog.back().timestamp;
+        auto duration = std::chrono::duration_cast<std::chrono::days>(newest - oldest);
+        if (duration.count() > 0) {
+            scanDays = std::max(1, static_cast<int>(duration.count()));
+        } else {
+            scanDays = 30;  // Absolute fallback
+        }
+    }
+
+    // Calculate average errors per day
+    double criticalPerDay = static_cast<double>(criticalCount) / scanDays;
+    double warningPerDay = static_cast<double>(warningCount) / scanDays;
+
+    // Penalize based on frequency
+    // Critical/Error events: High penalty
+    if (criticalCount > 0) {
+        int penalty = 0;
+        std::wstring description;
+
+        if (criticalPerDay >= 5.0) {
+            // 5+ critical errors per day - severe instability
+            penalty = PENALTY_CRITICAL;
+            description = L"Very high critical error rate (" + 
+                         std::to_wstring(criticalCount) + L" errors in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"CRITICAL_ERROR_RATE_SEVERE", description,
+                    HealthFlagSeverity::Critical, penalty);
+        } else if (criticalPerDay >= 2.0) {
+            // 2-4 critical errors per day - high instability
+            penalty = PENALTY_WARNING_HIGH;
+            description = L"High critical error rate (" + 
+                         std::to_wstring(criticalCount) + L" errors in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"CRITICAL_ERROR_RATE_HIGH", description,
+                    HealthFlagSeverity::Warning, penalty);
+        } else if (criticalPerDay >= 0.5) {
+            // 1 error every 2 days - moderate concern (but still Warning - active problem!)
+            penalty = PENALTY_WARNING;
+            description = L"Moderate critical error rate (" + 
+                         std::to_wstring(criticalCount) + L" errors in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"CRITICAL_ERROR_RATE_MODERATE", description,
+                    HealthFlagSeverity::Warning, penalty);
+        } else {
+            // Occasional critical errors - still Warning (active failures)
+            penalty = PENALTY_CAUTION_HIGH;
+            description = L"Occasional critical errors (" + 
+                         std::to_wstring(criticalCount) + L" errors in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"CRITICAL_ERROR_RATE_LOW", description,
+                    HealthFlagSeverity::Warning, penalty);
+        }
+    }
+
+    // Warning events: Lower penalty but still important
+    if (warningCount > 0) {
+        int penalty = 0;
+        std::wstring description;
+
+        if (warningPerDay >= 5.0) {
+            // 5+ warnings per day - very significant issue (Warning severity)
+            penalty = PENALTY_WARNING;
+            description = L"Very high warning rate (" + 
+                         std::to_wstring(warningCount) + L" warnings in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"WARNING_RATE_SEVERE", description,
+                    HealthFlagSeverity::Warning, penalty);
+        } else if (warningPerDay >= 1.0) {
+            // 1+ warning per day - significant issue (Warning severity)
+            penalty = PENALTY_CAUTION_HIGH;
+            description = L"High warning rate (" + 
+                         std::to_wstring(warningCount) + L" warnings in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"WARNING_RATE_HIGH", description,
+                    HealthFlagSeverity::Warning, penalty);
+        } else if (warningPerDay >= 0.2) {
+            // 0.2+ warnings per day (6+ per month) - moderate concern (Warning severity)
+            penalty = PENALTY_CAUTION_MED;
+            description = L"Moderate warning rate (" + 
+                         std::to_wstring(warningCount) + L" warnings in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"WARNING_RATE_MODERATE", description,
+                    HealthFlagSeverity::Warning, penalty);
+        } else {
+            // Very occasional warnings (Caution - less than 6 per month)
+            penalty = PENALTY_CAUTION_LOW;
+            description = L"Occasional warnings (" + 
+                         std::to_wstring(warningCount) + L" warnings in " + 
+                         std::to_wstring(scanDays) + L" days)";
+            addFlag(result, L"WARNING_RATE_LOW", description,
+                    HealthFlagSeverity::Caution, penalty);
+        }
     }
 }
 

@@ -37,6 +37,9 @@ private:
     /// Tier 4: Info flags (no penalty, informational)
     static void evaluateInfoFlags(const DriverInfo& driver, HealthResult& result);
 
+    /// Tier 5: Error log frequency evaluation (penalize based on error rate)
+    static void evaluateErrorLogFrequency(const DriverInfo& driver, HealthResult& result);
+
     // --- Helpers ---
 
     /// Checks if a flag already exists (for overlap prevention)

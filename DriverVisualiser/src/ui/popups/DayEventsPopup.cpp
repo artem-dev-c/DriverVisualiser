@@ -203,13 +203,13 @@ QWidget* DayEventsPopup::createEventCard(const ErrorLogEntry& entry)
 
     layout->addLayout(topRow);
 
-    // Provider (like source in ErrorLogPopup)
-    if (!entry.provider.empty()) {
-        QLabel* sourceLabel = new QLabel(QString::fromStdWString(entry.provider));
-        sourceLabel->setStyleSheet(QString(
+    // Driver name (if available)
+    if (!entry.driverName.empty()) {
+        QLabel* driverLabel = new QLabel(QString::fromStdWString(entry.driverName));
+        driverLabel->setStyleSheet(QString(
             "color: %1; font-size: 11px; font-weight: bold; background: transparent; border: none;"
         ).arg(AppTheme::colors().textValue));
-        layout->addWidget(sourceLabel);
+        layout->addWidget(driverLabel);
     }
 
     // Message

@@ -32,7 +32,21 @@ namespace {
         L"UNSIGNED_DRIVER",
         L"NEEDS_RESTART",
         L"DEVICE_DISCONNECTED",
-        L"USER_DISABLED"
+        L"USER_DISABLED",
+        // Error log frequency flags
+        L"CRITICAL_ERROR_RATE_SEVERE",
+        L"CRITICAL_ERROR_RATE_HIGH",
+        L"CRITICAL_ERROR_RATE_MODERATE",
+        L"CRITICAL_ERROR_RATE_LOW",
+        L"WARNING_RATE_SEVERE",
+        L"WARNING_RATE_HIGH",
+        L"WARNING_RATE_MODERATE",
+        // Graduated age flags (ancient/very old warrant dashboard visibility)
+        L"OUTDATED_DRIVER_ANCIENT",      // 7+ years
+        L"OUTDATED_DRIVER_VERY_OLD",     // 5+ years
+        // Critical device metadata flags (escalated to Warning severity)
+        L"NO_VERSION_INFO_CRITICAL",
+        L"NO_DRIVER_DATE_CRITICAL"
     };
 }
 

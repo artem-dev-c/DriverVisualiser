@@ -10,6 +10,7 @@ struct ErrorLogEntry {
     std::wstring level;                               ///< "Critical", "Error", "Warning", "Information"
     std::wstring provider;                            ///< Provider name (e.g., "Microsoft-Windows-Kernel-PnP")
     std::wstring message;                             ///< Full event message text
+    std::wstring driverName;                          ///< Friendly driver name (e.g., "NVIDIA Display Driver")
     
     // Matching fields (from EventData)
     std::optional<std::wstring> deviceInstanceId;     ///< Device Instance ID (for matching)
