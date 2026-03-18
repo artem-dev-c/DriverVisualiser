@@ -23,7 +23,7 @@ void ErrorLogPopupWidget::setupUi()
     setFixedWidth(520);
     setMaximumHeight(400);
     
-    // Main popup styling (match DriverInfoPopup)
+    // Main popup styling (match DriverInfoPopup exactly - static background)
     setStyleSheet(QString(
         "ErrorLogPopupWidget {"
         "   background-color: %1;"

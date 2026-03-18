@@ -1,6 +1,7 @@
 #include "ErrorLogIndicatorWidget.h"
 #include "AppTheme.h"
 #include "ErrorLogPopupWidget.h"
+#include "IconProvider.h"
 #include <QHBoxLayout>
 #include <QMouseEvent>
 
@@ -41,12 +42,42 @@ void ErrorLogIndicatorWidget::setupUi()
     m_textLabel->setFont(f);
     layout->addWidget(m_textLabel, 1);
 
-    m_arrowLabel = new QLabel("▾");
-    m_arrowLabel->setFixedWidth(10);
-    QFont af = m_arrowLabel->font();
-    af.setPointSize(9);
-    m_arrowLabel->setFont(af);
-    layout->addWidget(m_arrowLabel);
+    // Small chevron button with SVG icon — only visible when clickable
+    m_arrowButton = new QPushButton();
+    m_arrowButton->setIcon(IconProvider::icon(
+        IconProvider::ChevronDown,
+        AppTheme::colors().textMuted,
+        14  // Small, subtle icon
+    ));
+    m_arrowButton->setIconSize(QSize(14, 14));
+    m_arrowButton->setFixedSize(18, 18);
+    m_arrowButton->setFlat(true);
+    m_arrowButton->setStyleSheet(QString(
+        "QPushButton {"
+        "   border: none;"
+        "   background: transparent;"
+        "   padding: 0px;"
+        "}"
+    ));
+    m_arrowButton->setCursor(Qt::PointingHandCursor);
+    
+    // Connect arrow button click to same action as widget click
+    connect(m_arrowButton, &QPushButton::clicked, this, [this]() {
+        if (!m_hasLogs) return;
+        
+        if (!m_popup) {
+            m_popup = new ErrorLogPopupWidget(m_entries, m_logDays, nullptr);
+        }
+        if (m_popup->wasRecentlyClosed()) return;
+
+        if (m_popup->isVisible()) {
+            m_popup->hide();
+        } else {
+            m_popup->showRelativeTo(this);
+        }
+    });
+    
+    layout->addWidget(m_arrowButton);
 
     if (m_hasLogs) {
         setCursor(Qt::PointingHandCursor);
@@ -59,7 +90,7 @@ void ErrorLogIndicatorWidget::updateAppearance()
         // Neutral "no logs" — subdued, mirrors FlagIndicatorWidget healthy state
         m_textLabel->setText("No logs");
         m_textLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
-        m_arrowLabel->setVisible(false);
+        m_arrowButton->setVisible(false);
 
         setStyleSheet(QString(
             "ErrorLogIndicatorWidget {"
@@ -75,11 +106,12 @@ void ErrorLogIndicatorWidget::updateAppearance()
     int critical = countCritical();
     int errors   = countErrors();
     int warnings = countWarnings();
-    int total    = (int)m_entries.size();
+    int info     = countInformation();
 
     QString dayLabel = QString("(%1d)").arg(m_logDays);
     QString text;
 
+    // Prioritize showing problems (critical/error/warning)
     if (critical > 0) {
         text = QString("%1 critical %2").arg(critical).arg(dayLabel);
     } else if (errors > 0) {
@@ -87,10 +119,15 @@ void ErrorLogIndicatorWidget::updateAppearance()
                    .arg(errors)
                    .arg(errors > 1 ? "s" : "")
                    .arg(dayLabel);
-    } else {
+    } else if (warnings > 0) {
         text = QString("%1 warning%2 %3")
                    .arg(warnings)
                    .arg(warnings > 1 ? "s" : "")
+                   .arg(dayLabel);
+    } else if (info > 0) {
+        // Only info events - show them
+        text = QString("%1 info %2")
+                   .arg(info)
                    .arg(dayLabel);
     }
 
@@ -112,10 +149,14 @@ void ErrorLogIndicatorWidget::updateAppearance()
     m_textLabel->setStyleSheet(
         QString("color: %1; font-weight: bold; background: transparent;").arg(outline)
     );
-    m_arrowLabel->setStyleSheet(
-        QString("color: %1; background: transparent;").arg(outline)
-    );
-    m_arrowLabel->setVisible(true);
+    
+    // Update arrow button color to match text
+    m_arrowButton->setIcon(IconProvider::icon(
+        IconProvider::ChevronDown,
+        outline,  // Match text color
+        14
+    ));
+    m_arrowButton->setVisible(true);
 }
 
 // ============================================================================
@@ -172,6 +213,15 @@ int ErrorLogIndicatorWidget::countWarnings() const
     int n = 0;
     for (const auto& e : m_entries) {
         if (e.level == L"Warning") ++n;
+    }
+    return n;
+}
+
+int ErrorLogIndicatorWidget::countInformation() const
+{
+    int n = 0;
+    for (const auto& e : m_entries) {
+        if (e.level == L"Information") ++n;
     }
     return n;
 }

@@ -20,48 +20,32 @@ static std::wstring decodeHtmlEntities(const std::wstring& encoded) {
     return decoded;
 }
 
+// Forward declarations
+static ErrorLogEntry parseEvent(EVT_HANDLE hEvent);
+static std::wstring buildEventMessage(int eventId, const std::wstring& xml);
+
 // ============================================================================
-// Public API
+// MULTI-LOG QUERY ARCHITECTURE
 // ============================================================================
 
-std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
+// Helper: Query a single event log with provider/level filters
+static std::vector<ErrorLogEntry> querySingleLog(
+    const std::wstring& logName,
+    const std::wstring& queryXPath,
+    ULARGE_INTEGER uliCutoff,
+    int days)
 {
     std::vector<ErrorLogEntry> entries;
-
-    OutputDebugStringW(L"[ErrorLogReader] Starting query...\n");
-
-    // NOTE: XPath time filtering (timediff / @SystemTime comparisons) is
-    // unreliable across Windows versions. We filter by timestamp in C++ instead.
-    // Compute cutoff as FILETIME (100ns since 1601-01-01 UTC).
-    SYSTEMTIME stNow;
-    GetSystemTime(&stNow);
-    FILETIME ftNow;
-    SystemTimeToFileTime(&stNow, &ftNow);
-    ULARGE_INTEGER uliCutoff;
-    uliCutoff.LowPart  = ftNow.dwLowDateTime;
-    uliCutoff.HighPart = ftNow.dwHighDateTime;
-    // Add 1-day grace buffer so events from the boundary day are always included.
-    // Without this, events from early morning on day-7 get excluded if the scan
-    // runs in the evening (cutoff = scan_time - 7d, which is mid-day 7 days ago).
-    uliCutoff.QuadPart -= static_cast<ULONGLONG>(days + 1) * 86400ULL * 10000000ULL;
-
-    OutputDebugStringW((L"[ErrorLogReader] Filtering last " +
-                        std::to_wstring(days) + L" days in C++\n").c_str());
-
-    // Query by provider + level only (time filter handled in C++ below)
-    std::wstring query =
-        L"*[System["
-        L"(Provider[@Name='Microsoft-Windows-Kernel-PnP']"
-        L" or Provider[@Name='Microsoft-Windows-DriverFrameworks-UserMode'])"
-        L" and (Level=1 or Level=2 or Level=3)"
-        L"]]";
-
-    EVT_HANDLE hResults = EvtQuery(nullptr, L"System", query.c_str(),
+    
+    OutputDebugStringW((L"[ErrorLogReader] === Querying log: " + logName + L" ===\n").c_str());
+    
+    EVT_HANDLE hResults = EvtQuery(nullptr, logName.c_str(), queryXPath.c_str(),
                                    EvtQueryChannelPath | EvtQueryForwardDirection);
     if (!hResults) {
-        OutputDebugStringW((L"[ErrorLogReader] Query FAILED! Error: " +
-                            std::to_wstring(GetLastError()) + L"\n").c_str());
-        return entries;
+        DWORD error = GetLastError();
+        OutputDebugStringW((L"[ErrorLogReader] Query FAILED for " + logName + 
+                            L"! Error: " + std::to_wstring(error) + L"\n").c_str());
+        return entries;  // Return empty - log might not exist on this system
     }
 
     OutputDebugStringW(L"[ErrorLogReader] Query succeeded, fetching events...\n");
@@ -76,20 +60,23 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
         for (DWORD i = 0; i < returned; i++) {
             ErrorLogEntry entry = parseEvent(events[i]);
 
+            // DEBUG: Show lifecycle events when found
+            if (entry.eventId == 400 || entry.eventId == 403 || entry.eventId == 410 ||
+                entry.eventId == 430 || entry.eventId == 431) {
+                OutputDebugStringW((L"[ErrorLogReader] >>> LIFECYCLE EVENT " +
+                                    std::to_wstring(entry.eventId) + L" FOUND! <<<\n").c_str());
+            }
+
             if (entry.eventId != 0) {
-                // Convert entry.timestamp back to FILETIME and compare with cutoff.
-                // extractTimestamp() stores microseconds since Unix epoch (1970).
-                // Inverse: FILETIME = (us * 10) + 116444736000000000
-                // If timestamp is at epoch (us <= 0), parsing failed - include conservatively.
+                // Time filtering
                 auto us = std::chrono::duration_cast<std::chrono::microseconds>(
                               entry.timestamp.time_since_epoch()).count();
 
                 if (us <= 0) {
-                    entries.push_back(entry);  // failed parse: include
+                    entries.push_back(entry);  // Failed parse - include conservatively
                 } else {
                     ULARGE_INTEGER uliEvent;
-                    uliEvent.QuadPart = static_cast<ULONGLONG>(us) * 10ULL
-                                        + 116444736000000000ULL;
+                    uliEvent.QuadPart = static_cast<ULONGLONG>(us) * 10ULL + 116444736000000000ULL;
                     if (uliEvent.QuadPart >= uliCutoff.QuadPart)
                         entries.push_back(entry);
                 }
@@ -98,16 +85,178 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
         }
     }
 
-    OutputDebugStringW((L"[ErrorLogReader] Total fetched from log: " +
-                        std::to_wstring(totalFetched) + L"\n").c_str());
-    OutputDebugStringW((L"[ErrorLogReader] Events within " + std::to_wstring(days) +
-                        L"-day window: " + std::to_wstring(entries.size()) + L"\n").c_str());
-
-    // Reverse so entries are newest-first (EvtQuery returns oldest-first)
-    std::reverse(entries.begin(), entries.end());
+    OutputDebugStringW((L"[ErrorLogReader] " + logName + L": Fetched " +
+                        std::to_wstring(totalFetched) + L" total, " +
+                        std::to_wstring(entries.size()) + L" within time window\n").c_str());
 
     EvtClose(hResults);
     return entries;
+}
+
+// ============================================================================
+// Public API - Multi-Log Query
+// ============================================================================
+
+std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
+{
+    std::vector<ErrorLogEntry> allEntries;
+
+    OutputDebugStringW(L"\n[ErrorLogReader] ========================================\n");
+    OutputDebugStringW((L"[ErrorLogReader] Starting MULTI-LOG query (last " +
+                        std::to_wstring(days) + L" days)\n").c_str());
+    OutputDebugStringW(L"[ErrorLogReader] ========================================\n\n");
+
+    // Compute time cutoff (once for all logs)
+    SYSTEMTIME stNow;
+    GetSystemTime(&stNow);
+    FILETIME ftNow;
+    SystemTimeToFileTime(&stNow, &ftNow);
+    ULARGE_INTEGER uliCutoff;
+    uliCutoff.LowPart  = ftNow.dwLowDateTime;
+    uliCutoff.HighPart = ftNow.dwHighDateTime;
+    // Add 1-day grace buffer
+    uliCutoff.QuadPart -= static_cast<ULONGLONG>(days + 1) * 86400ULL * 10000000ULL;
+
+    // ====================
+    // LOG 1: System (Errors/Warnings/Critical + UserPnP Information)
+    // ====================
+    std::wstring systemQuery =
+        L"*[System["
+        L"(Provider[@Name='Microsoft-Windows-Kernel-PnP']"
+        L" or Provider[@Name='Microsoft-Windows-DriverFrameworks-UserMode']"
+        L" or Provider[@Name='Microsoft-Windows-UserPnP'])"
+        L" and (Level=1 or Level=2 or Level=3 or Level=4)"  // All levels
+        L"]]";
+    
+    auto systemEvents = querySingleLog(L"System", systemQuery, uliCutoff, days);
+    allEntries.insert(allEntries.end(), systemEvents.begin(), systemEvents.end());
+
+    // ====================
+    // LOG 2: Configuration (Kernel-PnP Information - Lifecycle Events)
+    // ====================
+    std::wstring configQuery =
+        L"*[System["
+        L"Provider[@Name='Microsoft-Windows-Kernel-PnP']"
+        L" and Level=4"  // Information only
+        L"]]";
+    
+    auto configEvents = querySingleLog(L"Microsoft-Windows-Kernel-PnP/Configuration",
+                                       configQuery, uliCutoff, days);
+    allEntries.insert(allEntries.end(), configEvents.begin(), configEvents.end());
+
+    // ====================
+    // Filter out events without DeviceInstanceId
+    // ====================
+    // Event 20003 has no DeviceInstanceId, so filter it out
+    auto beforeFilter = allEntries.size();
+    allEntries.erase(
+        std::remove_if(allEntries.begin(), allEntries.end(),
+            [](const ErrorLogEntry& e) {
+                // Keep only events that have a DeviceInstanceId
+                return !e.deviceInstanceId.has_value();
+            }),
+        allEntries.end()
+    );
+    
+    auto filteredCount = beforeFilter - allEntries.size();
+    if (filteredCount > 0) {
+        OutputDebugStringW((L"[ErrorLogReader] Filtered out " + 
+                            std::to_wstring(filteredCount) + 
+                            L" events without DeviceInstanceId\n").c_str());
+    }
+
+    // ====================
+    // Sort by timestamp (newest first)
+    // ====================
+    std::sort(allEntries.begin(), allEntries.end(),
+              [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
+                  return a.timestamp > b.timestamp;
+              });
+
+    OutputDebugStringW(L"\n[ErrorLogReader] ========================================\n");
+    OutputDebugStringW((L"[ErrorLogReader] TOTAL EVENTS COLLECTED: " + 
+                        std::to_wstring(allEntries.size()) + L"\n").c_str());
+    OutputDebugStringW((L"[ErrorLogReader]   From System log: " + 
+                        std::to_wstring(systemEvents.size()) + L"\n").c_str());
+    OutputDebugStringW((L"[ErrorLogReader]   From Configuration log: " + 
+                        std::to_wstring(configEvents.size()) + L"\n").c_str());
+    OutputDebugStringW(L"[ErrorLogReader] ========================================\n\n");
+
+    return allEntries;
+}
+
+// Helper: Check if two device instance IDs match (exact or parent-child relationship)
+static bool deviceIdsMatch(const std::wstring& eventDeviceId, const std::wstring& driverDeviceId)
+{
+    // Exact match
+    if (eventDeviceId == driverDeviceId) {
+        OutputDebugStringW(L"[ErrorLogReader] ✓ EXACT MATCH\n");
+        OutputDebugStringW((L"  ID: " + eventDeviceId + L"\n").c_str());
+        return true;
+    }
+    
+    // Case-insensitive comparison
+    std::wstring eventLower = eventDeviceId;
+    std::wstring driverLower = driverDeviceId;
+    std::transform(eventLower.begin(), eventLower.end(), eventLower.begin(), ::towlower);
+    std::transform(driverLower.begin(), driverLower.end(), driverLower.begin(), ::towlower);
+    
+    if (eventLower == driverLower) {
+        OutputDebugStringW(L"[ErrorLogReader] ✓ CASE-INSENSITIVE MATCH\n");
+        OutputDebugStringW((L"  Event:  " + eventDeviceId + L"\n").c_str());
+        OutputDebugStringW((L"  Driver: " + driverDeviceId + L"\n").c_str());
+        return true;
+    }
+    
+    // Parent-child relationship
+    auto extractBaseId = [](const std::wstring& id) -> std::wstring {
+        size_t lastSlash = id.find_last_of(L'\\');
+        if (lastSlash == std::wstring::npos)
+            return id;
+        return id.substr(0, lastSlash);
+    };
+    
+    std::wstring eventBase = extractBaseId(eventLower);
+    std::wstring driverBase = extractBaseId(driverLower);
+    
+    // Check if one is a prefix of the other (parent-child relationship)
+    if (eventBase.find(driverBase) == 0 || driverBase.find(eventBase) == 0) {
+        OutputDebugStringW(L"[ErrorLogReader] ✓ PREFIX MATCH (parent-child)\n");
+        OutputDebugStringW((L"  Event:  " + eventDeviceId + L"\n").c_str());
+        OutputDebugStringW((L"  Driver: " + driverDeviceId + L"\n").c_str());
+        return true;
+    }
+    
+    // Check vendor/product ID match for USB devices
+    auto extractVidPid = [](const std::wstring& id) -> std::wstring {
+        size_t vidPos = id.find(L"vid_");
+        if (vidPos == std::wstring::npos)
+            return L"";
+        
+        size_t pidPos = id.find(L"&pid_", vidPos);
+        if (pidPos == std::wstring::npos)
+            return L"";
+        
+        size_t endPos = id.find_first_of(L"&\\", pidPos + 5);
+        if (endPos == std::wstring::npos)
+            endPos = id.length();
+        
+        return id.substr(vidPos, endPos - vidPos);
+    };
+    
+    std::wstring eventVidPid = extractVidPid(eventLower);
+    std::wstring driverVidPid = extractVidPid(driverLower);
+    
+    // If both have VID/PID and they match, consider it a match
+    if (!eventVidPid.empty() && eventVidPid == driverVidPid) {
+        OutputDebugStringW(L"[ErrorLogReader] ✓ VID/PID MATCH\n");
+        OutputDebugStringW((L"  Event:  " + eventDeviceId + L"\n").c_str());
+        OutputDebugStringW((L"  Driver: " + driverDeviceId + L"\n").c_str());
+        OutputDebugStringW((L"  VID/PID: " + eventVidPid + L"\n").c_str());
+        return true;
+    }
+    
+    return false;
 }
 
 std::vector<ErrorLogEntry> ErrorLogReader::filterForDriver(
@@ -117,9 +266,62 @@ std::vector<ErrorLogEntry> ErrorLogReader::filterForDriver(
     std::vector<ErrorLogEntry> matched;
     for (const auto& event : allEvents) {
         if (event.deviceInstanceId.has_value() &&
-            event.deviceInstanceId.value() == driverInstanceId)
+            deviceIdsMatch(event.deviceInstanceId.value(), driverInstanceId))
             matched.push_back(event);
     }
+    
+    // ====================
+    // DEDUPLICATION - Remove identical events
+    // ====================
+    // Windows sometimes logs the same event multiple times (e.g., Event 400 logged 3x)
+    // Deduplicate by: EventID + Timestamp(second) + DeviceInstanceId
+    
+    auto beforeDedup = matched.size();
+    
+    // Sort by timestamp first to ensure stable deduplication
+    std::sort(matched.begin(), matched.end(),
+              [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
+                  return a.timestamp > b.timestamp;
+              });
+    
+    // Remove duplicates using std::unique
+    matched.erase(
+        std::unique(matched.begin(), matched.end(),
+            [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
+                // Two events are duplicates if they have:
+                // 1. Same event ID
+                // 2. Same timestamp (within same second)
+                // 3. Same device instance ID
+                
+                if (a.eventId != b.eventId)
+                    return false;
+                
+                if (a.deviceInstanceId != b.deviceInstanceId)
+                    return false;
+                
+                // Compare timestamps at second precision
+                auto a_seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                                     a.timestamp.time_since_epoch()).count();
+                auto b_seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                                     b.timestamp.time_since_epoch()).count();
+                
+                return a_seconds == b_seconds;
+            }),
+        matched.end()
+    );
+    
+    auto dedupCount = beforeDedup - matched.size();
+    
+    if (!matched.empty()) {
+        OutputDebugStringW((L"\n[ErrorLogReader] Driver: " + driverInstanceId + L"\n").c_str());
+        OutputDebugStringW((L"[ErrorLogReader] Matched " + std::to_wstring(beforeDedup) + L" events\n").c_str());
+        if (dedupCount > 0) {
+            OutputDebugStringW((L"[ErrorLogReader] Removed " + std::to_wstring(dedupCount) + 
+                                L" duplicate events\n").c_str());
+        }
+        OutputDebugStringW((L"[ErrorLogReader] Final count: " + std::to_wstring(matched.size()) + L" events\n").c_str());
+    }
+    
     return matched;
 }
 
@@ -146,8 +348,17 @@ static std::wstring buildEventMessage(int eventId, const std::wstring& xml) {
             }
             return L"Driver load failed";
         }
+        
+        // Lifecycle events (Information - Level 4)
         case 400:  return L"Device installation completed";
+        case 403:  return L"Driver install started";
         case 410:  return L"Device configured successfully";
+        case 430:  return L"Device removal started";
+        case 431:  return L"Device removal completed";
+        
+        // Note: Event 20001/20002 don't exist on Windows 11
+        // Note: Event 20003 filtered out (no DeviceInstanceId)
+        
         case 411: {
             auto st = ErrorLogReader::extractEventDataField(xml, L"Status");
             return st.has_value()
@@ -157,6 +368,7 @@ static std::wstring buildEventMessage(int eventId, const std::wstring& xml) {
         case 420:  return L"Device requires system restart to function";
         case 442:  return L"Device was disabled";
         case 443:  return L"Device was enabled";
+        
         case 1001: return L"Driver took too long to load";
         case 1002: return L"Driver initialization timed out";
         case 10000: {
@@ -177,7 +389,7 @@ static std::wstring buildEventMessage(int eventId, const std::wstring& xml) {
 // Event Parsing
 // ============================================================================
 
-ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
+static ErrorLogEntry parseEvent(EVT_HANDLE hEvent)
 {
     ErrorLogEntry entry;
     DWORD bufferSize = 0, bufferUsed = 0, propertyCount = 0;
@@ -198,11 +410,11 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
     }
 
     std::wstring xml(buffer.data());
-    entry.eventId = extractEventId(xml);
+    entry.eventId = ErrorLogReader::extractEventId(xml);
     OutputDebugStringW((L"[ErrorLogReader] Parsing Event ID: " +
                         std::to_wstring(entry.eventId) + L"\n").c_str());
 
-    std::wstring levelNum = extractXmlField(xml, L"Level");
+    std::wstring levelNum = ErrorLogReader::extractXmlField(xml, L"Level");
     if      (levelNum == L"1") entry.level = L"Critical";
     else if (levelNum == L"2") entry.level = L"Error";
     else if (levelNum == L"3") entry.level = L"Warning";
@@ -218,16 +430,16 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
             entry.provider = xml.substr(providerPos, endPos - providerPos);
     }
 
-    entry.timestamp = extractTimestamp(xml);
+    entry.timestamp = ErrorLogReader::extractTimestamp(xml);
     entry.message   = buildEventMessage(entry.eventId, xml);
 
-    entry.deviceInstanceId = extractEventDataField(xml, L"DeviceInstanceId");
+    entry.deviceInstanceId = ErrorLogReader::extractEventDataField(xml, L"DeviceInstanceId");
     if (!entry.deviceInstanceId.has_value())
-        entry.deviceInstanceId = extractEventDataField(xml, L"InstanceId");
+        entry.deviceInstanceId = ErrorLogReader::extractEventDataField(xml, L"InstanceId");
     if (!entry.deviceInstanceId.has_value())
-        entry.deviceInstanceId = extractEventDataField(xml, L"TargetInstanceId");
+        entry.deviceInstanceId = ErrorLogReader::extractEventDataField(xml, L"TargetInstanceId");
     if (!entry.deviceInstanceId.has_value())
-        entry.deviceInstanceId = extractEventDataField(xml, L"DriverName");
+        entry.deviceInstanceId = ErrorLogReader::extractEventDataField(xml, L"DriverName");
 
     if (entry.deviceInstanceId.has_value()) {
         entry.deviceInstanceId = decodeHtmlEntities(entry.deviceInstanceId.value());
@@ -237,7 +449,38 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
         OutputDebugStringW(L"[ErrorLogReader] NO Device Instance ID found!\n");
     }
 
-    auto statusStr = extractEventDataField(xml, L"Status");
+    // Extract lifecycle metadata for Information events (Event 400, 20001, 20002, etc.)
+    if (entry.level == L"Information") {
+        // Extract driver version
+        entry.driverVersion = ErrorLogReader::extractEventDataField(xml, L"DriverVersion");
+        
+        // Extract driver provider/manufacturer
+        entry.driverProvider = ErrorLogReader::extractEventDataField(xml, L"DriverProvider");
+        
+        // Extract INF filename (field name varies by event)
+        entry.infName = ErrorLogReader::extractEventDataField(xml, L"DriverName");
+        if (!entry.infName.has_value())
+            entry.infName = ErrorLogReader::extractEventDataField(xml, L"InfName");
+        
+        // Check if this was an update vs fresh install (Event 400)
+        if (entry.eventId == 400) {
+            auto deviceUpdated = ErrorLogReader::extractEventDataField(xml, L"DeviceUpdated");
+            if (deviceUpdated.has_value()) {
+                entry.isDriverUpdate = (deviceUpdated.value() == L"true");
+            }
+        }
+        
+        // Enhance message with version info if available
+        if (entry.driverVersion.has_value() && !entry.driverVersion.value().empty()) {
+            if (entry.isDriverUpdate.value_or(false)) {
+                entry.message = L"Driver updated to version " + entry.driverVersion.value();
+            } else if (entry.eventId == 400 || entry.eventId == 20002) {
+                entry.message = L"Driver installed (version " + entry.driverVersion.value() + L")";
+            }
+        }
+    }
+
+    auto statusStr = ErrorLogReader::extractEventDataField(xml, L"Status");
     if (statusStr.has_value()) {
         try { entry.statusCode = std::stoul(statusStr.value(), nullptr, 10); }
         catch (...) {}
@@ -276,16 +519,11 @@ int ErrorLogReader::extractEventId(const std::wstring& xml)
 std::chrono::system_clock::time_point ErrorLogReader::extractTimestamp(
     const std::wstring& xml)
 {
-    // Windows event XML uses SINGLE quotes for the SystemTime attribute:
-    //   <TimeCreated SystemTime='2026-02-09T14:32:15.1234567Z'/>
-    // We must search for SystemTime=' (with single quote), not SystemTime="
-
     size_t pos = xml.find(L"SystemTime='");
-    size_t quoteLen = 12;  // length of "SystemTime='"
+    size_t quoteLen = 12;
     wchar_t closeQuote = L'\'';
 
     if (pos == std::wstring::npos) {
-        // Fallback: try double quotes
         pos = xml.find(L"SystemTime=\"");
         closeQuote = L'"';
         if (pos == std::wstring::npos) {
@@ -304,7 +542,6 @@ std::chrono::system_clock::time_point ErrorLogReader::extractTimestamp(
     std::wstring timeStr = xml.substr(pos, end - pos);
     OutputDebugStringW((L"[ErrorLogReader] Timestamp: " + timeStr + L"\n").c_str());
 
-    // Parse: 2026-02-09T14:32:15.1234567Z
     SYSTEMTIME st = {};
     int parsed = swscanf_s(timeStr.c_str(), L"%4hu-%2hu-%2huT%2hu:%2hu:%2hu",
                            &st.wYear, &st.wMonth, &st.wDay,
@@ -325,7 +562,6 @@ std::chrono::system_clock::time_point ErrorLogReader::extractTimestamp(
     ull.LowPart  = ft.dwLowDateTime;
     ull.HighPart = ft.dwHighDateTime;
 
-    // FILETIME to microseconds since Unix epoch (1970-01-01)
     auto duration = std::chrono::microseconds(
         (ull.QuadPart - 116444736000000000ULL) / 10);
     return std::chrono::system_clock::time_point(duration);

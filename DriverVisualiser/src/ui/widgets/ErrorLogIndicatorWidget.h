@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QLabel>
+#include <QPushButton>
 #include <vector>
 #include "ErrorLogEntry.h"
 
@@ -39,6 +40,7 @@ private:
     int countCritical() const;
     int countErrors()   const;
     int countWarnings() const;
+    int countInformation() const;
 
     static QString outlineColor(int errorCount);
     static QString bgColor(int errorCount);
@@ -46,7 +48,7 @@ private:
     std::vector<ErrorLogEntry> m_entries;
     int     m_logDays  = 7;
     QLabel* m_textLabel  = nullptr;
-    QLabel* m_arrowLabel = nullptr;
+    QPushButton* m_arrowButton = nullptr;  // Changed from QLabel to QPushButton for SVG icon
     ErrorLogPopupWidget* m_popup = nullptr;
     bool    m_hasLogs = false;
 };
