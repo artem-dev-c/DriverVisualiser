@@ -6,6 +6,42 @@
 #include <algorithm>
 #include <map>
 
+// ============================================================================
+// Canonical event ID descriptions
+// Maps known Windows PnP / DriverFrameworks event IDs to fixed short strings.
+// Used in statistics tables so descriptions are consistent regardless of the
+// specific device name, version, or instance embedded in the raw event message.
+// ============================================================================
+
+static QString canonicalEventDescription(int eventId)
+{
+    switch (eventId) {
+        case 200: return "Device enabled";
+        case 201: return "Device disabled";
+        case 210: return "Device started";
+        case 211: return "Device stopped";
+        case 219: return "Driver load failed";
+        case 220: return "Driver started successfully";
+        case 221: return "Driver unloaded";
+        case 400: return "Device installed successfully";
+        case 401: return "Device installation failed";
+        case 410: return "Device configured successfully";
+        case 411: return "Device configuration failed";
+        case 420: return "Device requires system restart";
+        case 430: return "Device removal started";
+        case 431: return "Device removal completed";
+        case 7000: return "Service failed to start";
+        case 7001: return "Service dependency failed";
+        case 7009: return "Service start timeout";
+        case 7023: return "Service terminated with error";
+        case 7026: return "Boot-start or system-start driver failed";
+        case 7031: return "Service terminated unexpectedly";
+        case 7034: return "Service terminated unexpectedly";
+        case 7045: return "New service installed";
+        default:   return QString();  // Unknown — caller falls back to raw message
+    }
+}
+
 QString TextReportFormatter::format(
     const std::vector<DriverInfo>& drivers,
     const SystemInfo& systemInfo,
@@ -420,28 +456,111 @@ QString TextReportFormatter::formatDriverInventory(const std::vector<DriverInfo>
 QString TextReportFormatter::formatEventLogSummary(const std::vector<DriverInfo>& drivers, int scanWindowDays) const
 {
     QString section;
-    
+
     section += QString("EVENT LOG SUMMARY (Past %1 days)\n").arg(scanWindowDays);
-    section += separator(60, QChar(0x2500)) + "\n";  // ─
-    
-    // Count total driver-related errors from errorLog vectors
-    int totalErrors = 0;
-    
+    section += separator(60, QChar(0x2500)) + "\n";
+
+    // Collect all events
+    struct Entry {
+        std::chrono::system_clock::time_point timestamp;
+        std::wstring driverName;
+        int eventId;
+        std::wstring level;
+        std::wstring message;
+    };
+    std::vector<Entry> all;
     for (const auto& driver : drivers) {
-        totalErrors += static_cast<int>(driver.errorLog.size());
+        for (const auto& e : driver.errorLog) {
+            all.push_back({ e.timestamp, driver.name, e.eventId, e.level, e.message });
+        }
     }
-    
-    section += QString("Driver-Related Events: %1\n\n").arg(totalErrors);
-    
-    if (totalErrors == 0) {
+
+    if (all.empty()) {
         section += "No driver-related events detected in the scan window.\n";
-    } else {
-        section += QString("Found %1 driver-related event%2 associated with specific drivers.\n")
-            .arg(totalErrors)
-            .arg(totalErrors > 1 ? "s" : "");
-        section += "See driver details and Critical Issues section for specifics.\n";
+        return section;
     }
-    
+
+    // ── Stats table grouped by eventId ───────────────────────────────────────
+    // Key: eventId → { level, representative message, count }
+    struct Stat { std::wstring level; std::wstring message; int count = 0; };
+    std::map<int, Stat> stats;
+    int criticalCount = 0, warningCount = 0, infoCount = 0;
+
+    for (const auto& e : all) {
+        auto& s = stats[e.eventId];
+        s.count++;
+        if (s.count == 1) { s.level = e.level; s.message = e.message; }
+        if (e.level == L"Critical" || e.level == L"Error") criticalCount++;
+        else if (e.level == L"Warning")                     warningCount++;
+        else                                                infoCount++;
+    }
+
+    section += QString("Total: %1 events  (%2 critical/error, %3 warnings, %4 info)\n\n")
+        .arg(all.size()).arg(criticalCount).arg(warningCount).arg(infoCount);
+
+    // ── Stats table grouped by eventId ───────────────────────────────────────
+    // Sort by count descending
+    std::vector<std::pair<int, Stat>> sorted(stats.begin(), stats.end());
+    std::sort(sorted.begin(), sorted.end(),
+        [](const auto& a, const auto& b) { return a.second.count > b.second.count; });
+
+    // Fixed column widths
+    static constexpr int COL_ID   = 12;
+    static constexpr int COL_SEV  = 12;
+    static constexpr int COL_CNT  =  6;
+
+    section += QString("  %1%2%3  %4\n")
+        .arg(QString("Event ID").leftJustified(COL_ID))
+        .arg(QString("Severity").leftJustified(COL_SEV))
+        .arg(QString("Count").rightJustified(COL_CNT))
+        .arg("Description");
+    section += "  " + separator(56, QChar(QChar(0x2500))) + "\n";
+
+    for (const auto& [id, stat] : sorted) {
+        QString evId  = QString("Event %1").arg(id).leftJustified(COL_ID);
+        QString level = QString::fromStdWString(stat.level).leftJustified(COL_SEV);
+        QString cnt   = QString("%1x").arg(stat.count).rightJustified(COL_CNT);
+        QString msg   = canonicalEventDescription(id);
+        if (msg.isEmpty()) {
+            msg = QString::fromStdWString(stat.message);
+            if (msg.length() > 50) msg = msg.left(47) + "...";
+        }
+        section += QString("  %1%2%3  %4\n").arg(evId, level, cnt, msg);
+    }
+    section += "\n";
+
+    // ── Critical and Warning event list (newest first, max 30) ───────────────
+    std::vector<Entry> actionable;
+    for (const auto& e : all) {
+        if (e.level == L"Critical" || e.level == L"Error" || e.level == L"Warning")
+            actionable.push_back(e);
+    }
+    std::sort(actionable.begin(), actionable.end(),
+        [](const Entry& a, const Entry& b) { return a.timestamp > b.timestamp; });
+
+    if (!actionable.empty()) {
+        section += QString("Critical & Warning Events (%1):\n").arg(actionable.size());
+        section += "  " + separator(56, QChar(0x2500)) + "\n";
+
+        int shown = std::min(30, static_cast<int>(actionable.size()));
+        for (int i = 0; i < shown; ++i) {
+            const auto& e = actionable[i];
+            auto timeT = std::chrono::system_clock::to_time_t(e.timestamp);
+            QDateTime dt = QDateTime::fromSecsSinceEpoch(timeT);
+            QString ts  = dt.toString("yyyy-MM-dd hh:mm:ss");
+            QString lvl = QString::fromStdWString(e.level).leftJustified(10);
+            QString drv = QString::fromStdWString(e.driverName);
+            QString msg = QString::fromStdWString(e.message);
+            if (msg.length() > 60) msg = msg.left(57) + "...";
+            section += QString("  [%1]  %2  Event %3\n    %4\n    %5\n")
+                .arg(ts, lvl)
+                .arg(e.eventId)
+                .arg(drv, msg);
+        }
+        if (static_cast<int>(actionable.size()) > 30)
+            section += QString("  ... and %1 more\n").arg(actionable.size() - 30);
+    }
+
     return section;
 }
 
@@ -612,12 +731,18 @@ QString TextReportFormatter::formatRecommendations(const std::vector<DriverInfo>
     int criticalCount = 0;
     int warningCount = 0;
     int errorCount = 0;
-    
+    int eventWarningCount = 0;
     for (const auto& driver : drivers) {
         if (driver.healthScore < 70) criticalCount++;
         else if (driver.healthScore < 90) warningCount++;
-        errorCount += static_cast<int>(driver.errorLog.size());
+        for (const auto& entry : driver.errorLog) {
+            if (entry.level == L"Critical" || entry.level == L"Error")
+                errorCount++;
+            else if (entry.level == L"Warning")
+                eventWarningCount++;
+        }
     }
+    int actionableEventCount = errorCount + eventWarningCount;
     
     if (criticalCount == 0 && warningCount == 0 && errorCount == 0) {
         section += "✓ System appears stable and healthy\n";
@@ -645,9 +770,10 @@ QString TextReportFormatter::formatRecommendations(const std::vector<DriverInfo>
         section += "   • Review error logs for patterns\n\n";
     }
     
-    if (errorCount > 10) {
+    if (actionableEventCount > 10) {
         section += QString("%1. Investigate Event Log Errors\n").arg(recommendationNum++);
-        section += QString("   • %1 driver-related errors detected\n").arg(errorCount);
+        section += QString("   • %1 critical/warning events detected (%2 errors, %3 warnings)\n")
+            .arg(actionableEventCount).arg(errorCount).arg(eventWarningCount);
         section += "   • Review Windows Event Viewer for details\n";
         section += "   • Look for patterns (time of day, specific operations)\n\n";
     }

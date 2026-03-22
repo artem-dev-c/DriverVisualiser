@@ -67,5 +67,6 @@ private:
     // --- Data ---
     std::vector<DriverInfo> m_allDrivers;
     SystemInfo              m_systemInfo;
-    int                     m_selectedLogDays = 30;  // Default: 30 days
+    int                     m_selectedLogDays  = 30;  ///< Currently selected log window (may differ from last scan)
+    int                     m_lastScanLogDays  = 30;  ///< Log days actually used in the most recent scan
 };

@@ -4,6 +4,35 @@
 #include <algorithm>
 #include <map>
 
+static QString canonicalEventDescription(int eventId)
+{
+    switch (eventId) {
+        case 200: return "Device enabled";
+        case 201: return "Device disabled";
+        case 210: return "Device started";
+        case 211: return "Device stopped";
+        case 219: return "Driver load failed";
+        case 220: return "Driver started successfully";
+        case 221: return "Driver unloaded";
+        case 400: return "Device installed successfully";
+        case 401: return "Device installation failed";
+        case 410: return "Device configured successfully";
+        case 411: return "Device configuration failed";
+        case 420: return "Device requires system restart";
+        case 430: return "Device removal started";
+        case 431: return "Device removal completed";
+        case 7000: return "Service failed to start";
+        case 7001: return "Service dependency failed";
+        case 7009: return "Service start timeout";
+        case 7023: return "Service terminated with error";
+        case 7026: return "Boot-start or system-start driver failed";
+        case 7031: return "Service terminated unexpectedly";
+        case 7034: return "Service terminated unexpectedly";
+        case 7045: return "New service installed";
+        default:   return QString();
+    }
+}
+
 QString HtmlReportFormatter::format(
     const std::vector<DriverInfo>& drivers,
     const SystemInfo& systemInfo,
@@ -531,7 +560,21 @@ QString HtmlReportFormatter::formatStyles() const
             padding: 40px;
             color: #666;
         }
-        
+
+        /* Event stats table */
+        .event-stats { margin-bottom: 20px; }
+        .event-stats-title { font-weight: 600; margin-bottom: 8px; color: #a0b0c0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .event-stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .event-stats-table th { text-align: left; padding: 6px 10px; border-bottom: 1px solid #334155; color: #a0b0c0; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+        .event-stats-table td { padding: 6px 10px; border-bottom: 1px solid #1e293b; }
+        .stat-id { font-family: monospace; color: #cbd5e1; }
+        .stat-count { font-weight: bold; text-align: center; }
+        .stat-msg { color: #94a3b8; }
+        .stat-level.error { color: #e74c3c; font-weight: bold; }
+        .stat-level.warning { color: #f39c12; font-weight: bold; }
+        .stat-level.info { color: #5dade2; }
+        .event-log-subtitle { font-weight: 600; margin: 16px 0 8px; color: #a0b0c0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+
         @media print {
             body { background: white; color: black; }
             .section { page-break-inside: avoid; }
@@ -703,12 +746,18 @@ QString HtmlReportFormatter::formatRecommendations(const std::vector<DriverInfo>
     int criticalCount = 0;
     int warningCount = 0;
     int errorCount = 0;
-    
+    int eventWarningCount = 0;
     for (const auto& driver : drivers) {
         if (driver.healthScore < 70) criticalCount++;
         else if (driver.healthScore < 90) warningCount++;
-        errorCount += static_cast<int>(driver.errorLog.size());
+        for (const auto& entry : driver.errorLog) {
+            if (entry.level == L"Critical" || entry.level == L"Error")
+                errorCount++;
+            else if (entry.level == L"Warning")
+                eventWarningCount++;
+        }
     }
+    int actionableEventCount = errorCount + eventWarningCount;
     
     QString html;
     html += "<div class=\"section\">\n";
@@ -738,10 +787,12 @@ QString HtmlReportFormatter::formatRecommendations(const std::vector<DriverInfo>
         html += "    </li>\n";
     }
     
-    if (errorCount > 10) {
+    if (actionableEventCount > 10) {
         html += "    <li>\n";
         html += "      <div class=\"recommendation-title\">" + QString::number(recommendationNum++) + ". Review Event Logs</div>\n";
-        html += "      <div class=\"recommendation-desc\">• " + QString::number(errorCount) + " error events detected in the scan window</div>\n";
+        html += "      <div class=\"recommendation-desc\">• " + QString::number(actionableEventCount)
+             + " critical/warning events detected (" + QString::number(errorCount)
+             + " errors, " + QString::number(eventWarningCount) + " warnings)</div>\n";
         html += "      <div class=\"recommendation-desc\">• Check the Error Logs section below for details</div>\n";
         html += "      <div class=\"recommendation-desc\">• Look for patterns or repeated issues</div>\n";
         html += "    </li>\n";
@@ -886,7 +937,6 @@ QString HtmlReportFormatter::formatStatistics(
 
 QString HtmlReportFormatter::formatEventLog(const std::vector<DriverInfo>& drivers, int scanWindowDays) const
 {
-    // Collect all error log entries from all drivers
     struct ErrorEntry {
         std::chrono::system_clock::time_point timestamp;
         std::wstring driverName;
@@ -894,74 +944,121 @@ QString HtmlReportFormatter::formatEventLog(const std::vector<DriverInfo>& drive
         std::wstring level;
         std::wstring message;
     };
-    
+
     std::vector<ErrorEntry> allErrors;
-    
     for (const auto& driver : drivers) {
         for (const auto& error : driver.errorLog) {
-            ErrorEntry entry;
-            entry.timestamp = error.timestamp;
-            entry.driverName = driver.name;
-            entry.eventId = error.eventId;
-            entry.level = error.level;
-            entry.message = error.message;
-            allErrors.push_back(entry);
+            allErrors.push_back({ error.timestamp, driver.name, error.eventId, error.level, error.message });
         }
     }
-    
-    // Sort by timestamp (newest first)
+
+    // Sort by timestamp newest first
     std::sort(allErrors.begin(), allErrors.end(),
-        [](const ErrorEntry& a, const ErrorEntry& b) {
-            return a.timestamp > b.timestamp;
-        });
-    
+        [](const ErrorEntry& a, const ErrorEntry& b) { return a.timestamp > b.timestamp; });
+
+    // ── Build stats grouped by eventId ────────────────────────────────────────
+    struct Stat { std::wstring level; std::wstring message; int count = 0; };
+    std::map<int, Stat> statsMap;
+    int criticalCount = 0, warningCount = 0, infoCount = 0;
+
+    for (const auto& e : allErrors) {
+        auto& s = statsMap[e.eventId];
+        s.count++;
+        if (s.count == 1) { s.level = e.level; s.message = e.message; }
+        if (e.level == L"Critical" || e.level == L"Error") criticalCount++;
+        else if (e.level == L"Warning")                     warningCount++;
+        else                                                infoCount++;
+    }
+
+    // Sort stats by count descending
+    std::vector<std::pair<int, Stat>> sortedStats(statsMap.begin(), statsMap.end());
+    std::sort(sortedStats.begin(), sortedStats.end(),
+        [](const auto& a, const auto& b) { return a.second.count > b.second.count; });
+
+    // ── Actionable events only (Critical/Warning) ─────────────────────────────
+    std::vector<ErrorEntry> actionable;
+    for (const auto& e : allErrors) {
+        if (e.level == L"Critical" || e.level == L"Error" || e.level == L"Warning")
+            actionable.push_back(e);
+    }
+
     QString html;
     html += "<div class=\"section\">\n";
     html += "  <div class=\"section-header collapsible-header\">\n";
-    html += "    <div class=\"section-title\">Error Logs (Past " + QString::number(scanWindowDays) + " days)</div>\n";
-    html += "    <div class=\"section-count\">" + QString::number(allErrors.size()) + " events</div>\n";
+    html += "    <div class=\"section-title\">Event Log (Past " + QString::number(scanWindowDays) + " days)</div>\n";
+    html += "    <div class=\"section-count\">" + QString::number(allErrors.size()) + " total &nbsp;|&nbsp; "
+         + QString::number(criticalCount) + " critical &nbsp;|&nbsp; "
+         + QString::number(warningCount)  + " warnings &nbsp;|&nbsp; "
+         + QString::number(infoCount)     + " info</div>\n";
     html += "  </div>\n";
-    
+    html += "  <div class=\"collapsible-content\">\n";
+
     if (allErrors.empty()) {
-        html += "  <div class=\"collapsible-content\">\n";
         html += "    <div class=\"empty-state\">No driver-related events detected in the scan window</div>\n";
-        html += "  </div>\n";
     } else {
-        html += "  <div class=\"collapsible-content\">\n";
-        html += "    <div class=\"error-log-list\">\n";
-        
-        for (const auto& error : allErrors) {
-            // Format timestamp
-            auto timeT = std::chrono::system_clock::to_time_t(error.timestamp);
-            std::tm tm;
-            localtime_s(&tm, &timeT);
-            char timeBuf[64];
-            std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tm);
-            QString timeStr = QString::fromUtf8(timeBuf);
-            
+        // Stats table
+        html += "    <div class=\"event-stats\">\n";
+        html += "      <div class=\"event-stats-title\">Event Frequency by ID</div>\n";
+        html += "      <table class=\"event-stats-table\">\n";
+        html += "        <thead><tr><th>Event ID</th><th>Severity</th><th>Count</th><th>Description</th></tr></thead>\n";
+        html += "        <tbody>\n";
+        for (const auto& [id, stat] : sortedStats) {
             QString levelClass = "info";
-            if (error.level == L"Critical" || error.level == L"Error") {
-                levelClass = "error";
-            } else if (error.level == L"Warning") {
-                levelClass = "warning";
+            if (stat.level == L"Critical" || stat.level == L"Error") levelClass = "error";
+            else if (stat.level == L"Warning") levelClass = "warning";
+            QString msg = canonicalEventDescription(id);
+            if (msg.isEmpty()) {
+                msg = escapeHtml(QString::fromStdWString(stat.message));
+                if (msg.length() > 80) msg = msg.left(77) + "...";
             }
-            
-            html += "      <div class=\"error-entry " + levelClass + "\">\n";
-            html += "        <div class=\"error-header\">\n";
-            html += "          <span class=\"error-time\">" + timeStr + "</span>\n";
-            html += "          <span class=\"error-level\">" + QString::fromStdWString(error.level) + "</span>\n";
-            html += "          <span class=\"error-id\">Event ID: " + QString::number(error.eventId) + "</span>\n";
-            html += "        </div>\n";
-            html += "        <div class=\"error-driver\">Driver: " + escapeHtml(QString::fromStdWString(error.driverName)) + "</div>\n";
-            html += "        <div class=\"error-message\">" + escapeHtml(QString::fromStdWString(error.message)) + "</div>\n";
-            html += "      </div>\n";
+            html += "        <tr class=\"stat-row " + levelClass + "\">\n";
+            html += "          <td class=\"stat-id\">Event " + QString::number(id) + "</td>\n";
+            html += "          <td class=\"stat-level " + levelClass + "\">" + escapeHtml(QString::fromStdWString(stat.level)) + "</td>\n";
+            html += "          <td class=\"stat-count\">" + QString::number(stat.count) + "×</td>\n";
+            html += "          <td class=\"stat-msg\">" + msg + "</td>\n";
+            html += "        </tr>\n";
         }
-        
+        html += "        </tbody>\n";
+        html += "      </table>\n";
         html += "    </div>\n";
-        html += "  </div>\n";
+
+        // Critical/Warning raw list
+        html += "    <div class=\"event-log-list\">\n";
+        html += "      <div class=\"event-log-subtitle\">Critical &amp; Warning Events ("
+             + QString::number(actionable.size()) + ")</div>\n";
+
+        if (actionable.empty()) {
+            html += "      <div class=\"empty-state\">No critical or warning events in this scan window</div>\n";
+        } else {
+            int shown = std::min(50, static_cast<int>(actionable.size()));
+            for (int i = 0; i < shown; ++i) {
+                const auto& error = actionable[i];
+                auto timeT = std::chrono::system_clock::to_time_t(error.timestamp);
+                std::tm tm;
+                localtime_s(&tm, &timeT);
+                char timeBuf[64];
+                std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tm);
+                QString timeStr = QString::fromUtf8(timeBuf);
+
+                QString levelClass = (error.level == L"Critical" || error.level == L"Error") ? "error" : "warning";
+
+                html += "      <div class=\"error-entry " + levelClass + "\">\n";
+                html += "        <div class=\"error-header\">\n";
+                html += "          <span class=\"error-time\">" + timeStr + "</span>\n";
+                html += "          <span class=\"error-level\">" + escapeHtml(QString::fromStdWString(error.level)) + "</span>\n";
+                html += "          <span class=\"error-id\">Event ID: " + QString::number(error.eventId) + "</span>\n";
+                html += "        </div>\n";
+                html += "        <div class=\"error-driver\">Driver: " + escapeHtml(QString::fromStdWString(error.driverName)) + "</div>\n";
+                html += "        <div class=\"error-message\">" + escapeHtml(QString::fromStdWString(error.message)) + "</div>\n";
+                html += "      </div>\n";
+            }
+            if (static_cast<int>(actionable.size()) > 50)
+                html += "      <div class=\"empty-state\">... and " + QString::number(actionable.size() - 50) + " more</div>\n";
+        }
+        html += "    </div>\n";
     }
-    
-    html += "</div>\n";
+
+    html += "  </div>\n</div>\n";
     return html;
 }
 

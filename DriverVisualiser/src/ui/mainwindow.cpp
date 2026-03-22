@@ -157,8 +157,9 @@ std::vector<DriverInfo> MainWindow::performScan(int logDays)
 void MainWindow::onScanComplete()
 {
     // Back on main thread — safe to update UI
-    m_allDrivers = m_scanWatcher->result();
-    m_scanning   = false;
+    m_allDrivers       = m_scanWatcher->result();
+    m_lastScanLogDays  = m_selectedLogDays;  // Record the days used for this scan
+    m_scanning         = false;
 
     showLoadingState(false);
     populateDriverList();
@@ -644,9 +645,9 @@ void MainWindow::onGenerateReportRequested(ReportFormat format)
     QString reportText;
     
     if (format == ReportFormat::Html) {
-        reportText = generator.generateHtmlReport(m_allDrivers, m_systemInfo, m_selectedLogDays);
+        reportText = generator.generateHtmlReport(m_allDrivers, m_systemInfo, m_lastScanLogDays);
     } else {
-        reportText = generator.generateTextReport(m_allDrivers, m_systemInfo, m_selectedLogDays);
+        reportText = generator.generateTextReport(m_allDrivers, m_systemInfo, m_lastScanLogDays);
     }
 
     // 4. Save to file
