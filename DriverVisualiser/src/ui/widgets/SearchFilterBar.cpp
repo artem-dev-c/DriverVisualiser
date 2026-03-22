@@ -99,8 +99,11 @@ void SearchFilterBar::onFilterButtonClicked()
     // Create popup if not exists
     if (!m_filterPopup) {
         m_filterPopup = new FilterPopupWidget(m_manufacturers, this);
-        connect(m_filterPopup, &FilterPopupWidget::filtersChanged, 
-                this, &SearchFilterBar::filtersChanged);
+        connect(m_filterPopup, &FilterPopupWidget::filtersChanged,
+                this, [this]() {
+                    updateFilterBadge();
+                    emit filtersChanged();
+                });
     }
     
     // Toggle popup
@@ -127,10 +130,64 @@ FilterPopupWidget::FilterState SearchFilterBar::getFilterState() const
 void SearchFilterBar::setManufacturers(const std::set<std::wstring>& manufacturers)
 {
     m_manufacturers = manufacturers;
-    
-    // Recreate popup with new manufacturers
     if (m_filterPopup) {
         delete m_filterPopup;
         m_filterPopup = nullptr;
+    }
+    updateFilterBadge();
+}
+
+void SearchFilterBar::updateFilterBadge()
+{
+    int count = m_filterPopup ? m_filterPopup->activeFilterCount() : 0;
+    if (count > 0) {
+        m_filterButton->setText(QString("  Filters · %1").arg(count));
+        m_filterButton->setStyleSheet(m_filterButton->styleSheet()
+            .replace(AppTheme::colors().textSecondary, AppTheme::colors().accentText));
+        // Restyle button to show active state
+        m_filterButton->setStyleSheet(QString(
+            "QPushButton {"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
+            "   border-radius: 10px;"
+            "   padding: 12px 24px;"
+            "   font-size: 12px;"
+            "   color: %3;"
+            "   font-weight: bold;"
+            "}"
+            "QPushButton:hover {"
+            "   background-color: %4;"
+            "   border-color: %5;"
+            "}"
+        ).arg(AppTheme::colors().bgButtonActive,
+              AppTheme::colors().borderActive,
+              AppTheme::colors().accentText,
+              AppTheme::colors().accentBg,
+              AppTheme::colors().accent));
+    } else {
+        m_filterButton->setText("  Filters");
+        m_filterButton->setStyleSheet(QString(
+            "QPushButton {"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
+            "   border-radius: 10px;"
+            "   padding: 12px 24px;"
+            "   font-size: 12px;"
+            "   color: %3;"
+            "   font-weight: bold;"
+            "}"
+            "QPushButton:hover {"
+            "   background-color: %4;"
+            "   border-color: %5;"
+            "   color: %6;"
+            "}"
+            "QPushButton:pressed { background-color: %7; }"
+        ).arg(AppTheme::colors().bgElevated,
+              AppTheme::colors().borderNormal,
+              AppTheme::colors().textSecondary,
+              AppTheme::colors().bgHover,
+              AppTheme::colors().accent,
+              AppTheme::colors().textPrimary,
+              AppTheme::colors().bgBase));
     }
 }

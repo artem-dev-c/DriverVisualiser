@@ -43,6 +43,7 @@ private slots:
 
 private:
     void setupUi();
+    void updateFilterBadge();  ///< Update button text/style to reflect active filter count
     
     QLineEdit* m_searchBox;
     QPushButton* m_filterButton;

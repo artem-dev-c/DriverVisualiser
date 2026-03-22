@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QFrame>
 #include "CategoryProcessor.h"
+#include "FilterPopupWidget.h"
 
 class DriverCardWidget;
 
@@ -19,9 +20,15 @@ public:
     explicit CategorySectionWidget(const ProcessedCategory& category,
                                    int logDays = 7,
                                    QWidget* parent = nullptr);
-    
+
     void setExpanded(bool expanded);
     bool isExpanded() const;
+
+    /// Show/hide individual driver cards based on search text and filter state.
+    /// Returns true if at least one driver card is visible (section should show).
+    /// Pass empty searchText and default FilterState to show all.
+    bool applyFilter(const QString& searchText,
+                     const FilterPopupWidget::FilterState& filters);
 
 private slots:
     void toggleExpanded();
@@ -33,7 +40,7 @@ private:
     QString getHealthIndicatorText() const;
     QString getHealthIndicatorIcon() const;
     QColor getHealthIndicatorColor() const;
-    QString getStatusText() const;  // New: "X drivers • No issues"
+    QString getStatusText() const;
 
     QPushButton* m_toggleButton;
     QLabel* m_titleLabel;

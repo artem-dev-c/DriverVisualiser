@@ -91,15 +91,13 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     layout->setContentsMargins(10, 9, 10, 9);
     layout->setSpacing(14);
 
-    // === Severity dot ===
-    QLabel* dot = new QLabel("●");
-    dot->setFixedWidth(12);
-
+    // === Severity indicator — small rounded rectangle ===
+    QLabel* dot = new QLabel();
+    dot->setFixedSize(6, 20);
     if (issue.isUserDisabled) {
-        dot->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;").arg(AppTheme::colors().textDisabled));
+        dot->setStyleSheet(QString("background-color: %1; border-radius: 2px;").arg(AppTheme::colors().textDisabled));
     } else {
-        QString color = severityColor(issue.severity);
-        dot->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;").arg(color));
+        dot->setStyleSheet(QString("background-color: %1; border-radius: 2px;").arg(severityColor(issue.severity)));
     }
     layout->addWidget(dot);
 
@@ -114,12 +112,17 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     nameLabel->setFont(nameFont);
 
     if (issue.isUserDisabled) {
-        nameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textDisabled));
+        nameLabel->setStyleSheet(QString(
+            "color: %1; background: transparent;"
+        ).arg(AppTheme::colors().textDisabled, AppTheme::colors().bgOverlay,
+              AppTheme::colors().textPrimary,  AppTheme::colors().borderStrong));
     } else {
-        nameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textPrimary));
+        nameLabel->setStyleSheet(QString(
+            "color: %1; background: transparent;"
+        ).arg(AppTheme::colors().textPrimary,  AppTheme::colors().bgOverlay,
+              AppTheme::colors().textPrimary,  AppTheme::colors().borderStrong));
     }
 
-    nameLabel->setToolTip(displayName);  // Full name on hover if truncated
     layout->addWidget(nameLabel);
 
     // === Description ===
@@ -131,12 +134,17 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
     descLabel->setFont(descFont);
 
     if (issue.isUserDisabled) {
-        descLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textMuted));
+        descLabel->setStyleSheet(QString(
+            "color: %1; background: transparent;"
+        ).arg(AppTheme::colors().textMuted,    AppTheme::colors().bgOverlay,
+              AppTheme::colors().textPrimary,  AppTheme::colors().borderStrong));
     } else {
-        descLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(AppTheme::colors().textSecondary));
+        descLabel->setStyleSheet(QString(
+            "color: %1; background: transparent;"
+        ).arg(AppTheme::colors().textSecondary, AppTheme::colors().bgOverlay,
+              AppTheme::colors().textPrimary,   AppTheme::colors().borderStrong));
     }
 
-    descLabel->setToolTip(descText);
     layout->addWidget(descLabel, 1);  // Stretch to fill
 
     // === Category badge ===
@@ -156,7 +164,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
                 "   color: %1;"
                 "   background-color: %2;"
                 "   border: 1px solid %3;"
-                "   border-radius: 3px;"
+                "   border-radius: 6px;"
                 "   padding: 1px 6px;"
                 "}"
             ).arg(AppTheme::colors().textMuted, AppTheme::colors().bgCard, AppTheme::colors().borderNormal
@@ -167,7 +175,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
                 "   color: %1;"
                 "   background-color: %2;"
                 "   border: 1px solid %3;"
-                "   border-radius: 3px;"
+                "   border-radius: 6px;"
                 "   padding: 1px 6px;"
                 "}"
             ).arg(AppTheme::colors().accentText, AppTheme::colors().accentBg, AppTheme::colors().accentBgBorder

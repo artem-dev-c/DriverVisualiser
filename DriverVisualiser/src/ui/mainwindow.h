@@ -10,6 +10,7 @@
 #include "DriverInfo.h"
 #include "SystemInfo.h"
 #include "DashboardWidget.h"
+#include "CategorySectionWidget.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -49,12 +50,15 @@ private:
     Ui::MainWindow *ui;
 
     // --- Widgets ---
-    DashboardWidget*     m_dashboard     = nullptr;
-    EventTimelineWidget* m_timeline      = nullptr;
-    SearchFilterBar*     m_searchBar     = nullptr;
-    QVBoxLayout*         m_contentLayout = nullptr;
-    QWidget*             m_loadingWidget = nullptr;
-    QLabel*              m_loadingLabel  = nullptr;
+    DashboardWidget*     m_dashboard        = nullptr;
+    EventTimelineWidget* m_timeline         = nullptr;
+    SearchFilterBar*     m_searchBar        = nullptr;
+    QVBoxLayout*         m_contentLayout    = nullptr;
+    QWidget*             m_loadingWidget    = nullptr;
+    QLabel*              m_loadingLabel     = nullptr;
+
+    /// Live category section widgets — kept alive for fast show/hide filtering
+    std::vector<CategorySectionWidget*> m_categorySections;
 
     // --- Async scan ---
     QFutureWatcher<std::vector<DriverInfo>>* m_scanWatcher = nullptr;

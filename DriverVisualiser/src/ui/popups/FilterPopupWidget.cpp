@@ -6,23 +6,31 @@
 #include <QKeyEvent>
 #include <QDateTime>
 #include <QScrollArea>
+#include <QFrame>
+#include <QGridLayout>
+#include <functional>
+
+// ============================================================================
+// Construction
+// ============================================================================
 
 FilterPopupWidget::FilterPopupWidget(const std::set<std::wstring>& allManufacturers,
                                      QWidget* parent)
     : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint)
 {
     setAttribute(Qt::WA_DeleteOnClose, false);
-    
     setupUi(allManufacturers);
 }
 
+// ============================================================================
+// UI Setup
+// ============================================================================
+
 void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
 {
-    setMinimumWidth(280);
-    setMaximumWidth(320);
-    setMaximumHeight(500);  // Increased for scrolling
-    
-    // Popup styling - match DriverInfoPopup exactly
+    setFixedWidth(340);
+    setMaximumHeight(520);
+
     setStyleSheet(QString(
         "FilterPopupWidget {"
         "   background-color: %1;"
@@ -30,335 +38,376 @@ void FilterPopupWidget::setupUi(const std::set<std::wstring>& allManufacturers)
         "   border-radius: 0px;"
         "}"
     ).arg(AppTheme::colors().bgOverlay, AppTheme::colors().borderStrong));
-    
-    // Use scroll area for long manufacturer lists
+
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(1, 1, 1, 1);  // Small margin for border outline
+    mainLayout->setContentsMargins(1, 1, 1, 1);
     mainLayout->setSpacing(0);
-    
+
     QScrollArea* scrollArea = new QScrollArea();
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setStyleSheet(QString(
-        "QScrollArea {"
-        "   background-color: transparent;"
-        "   border: none;"
-        "   border-radius: 0px;"
-        "}"
-        "QScrollArea > QWidget > QWidget {"
-        "   background-color: transparent;"
-        "}"
+        "QScrollArea { background-color: transparent; border: none; }"
+        "QScrollArea > QWidget > QWidget { background-color: transparent; }"
     ) + AppTheme::scrollbarStyleSheet());
-    
-    QWidget* contentWidget = new QWidget();
-    contentWidget->setStyleSheet("background-color: transparent;");
-    
-    QVBoxLayout* layout = new QVBoxLayout(contentWidget);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(10);
-    
-    // === Health Status Section ===
-    layout->addWidget(createSection("Health Status"));
-    m_criticalCheck = createCheckbox("Critical Issues", false);
-    m_warningsCheck = createCheckbox("Warnings", false);
-    m_healthyCheck = createCheckbox("Healthy", false);
-    layout->addWidget(m_criticalCheck);
-    layout->addWidget(m_warningsCheck);
-    layout->addWidget(m_healthyCheck);
-    
-    layout->addSpacing(6);
-    
-    // === Importance Level Section ===
-    layout->addWidget(createSection("Importance Level"));
-    m_criticalDevicesCheck = createCheckbox("Critical Devices", false);
-    m_importantDevicesCheck = createCheckbox("Important Devices", false);
-    m_optionalDevicesCheck = createCheckbox("Optional Devices", false);
-    m_virtualDevicesCheck = createCheckbox("Virtual Devices", false);
-    layout->addWidget(m_criticalDevicesCheck);
-    layout->addWidget(m_importantDevicesCheck);
-    layout->addWidget(m_optionalDevicesCheck);
-    layout->addWidget(m_virtualDevicesCheck);
-    
-    layout->addSpacing(6);
-    
-    // === Manufacturer Section - SHOW ALL ===
+
+    QWidget* content = new QWidget();
+    content->setStyleSheet("background-color: transparent;");
+
+    QVBoxLayout* layout = new QVBoxLayout(content);
+    layout->setContentsMargins(14, 14, 14, 14);
+    layout->setSpacing(0);
+
+    // ── Health Status ─────────────────────────────────────────────────────────
+    layout->addWidget(createSectionHeader("Health Status", [this]() {
+        clearAllChips(m_healthChips);
+        emit filtersChanged();
+    }));
+    layout->addSpacing(8);
+    layout->addWidget(createChipRow({"Critical", "Warnings", "Healthy"}, m_healthChips));
+    layout->addSpacing(14);
+
+    // Separator
+    auto makeSep = [&]() {
+        QFrame* sep = new QFrame();
+        sep->setFixedHeight(1);
+        sep->setStyleSheet(QString("background-color: %1;").arg(AppTheme::colors().borderSubtle));
+        return sep;
+    };
+    layout->addWidget(makeSep());
+    layout->addSpacing(14);
+
+    // ── Importance Level ──────────────────────────────────────────────────────
+    layout->addWidget(createSectionHeader("Importance Level", [this]() {
+        clearAllChips(m_importanceChips);
+        emit filtersChanged();
+    }));
+    layout->addSpacing(8);
+    layout->addWidget(createChipRow(
+        {"Critical Devices", "Important", "Optional", "Virtual"},
+        m_importanceChips));
+    layout->addSpacing(14);
+
+    // ── Manufacturer ──────────────────────────────────────────────────────────
     if (!allManufacturers.empty()) {
-        layout->addWidget(createSection("Manufacturer"));
-        
-        // Show ALL manufacturers (no limit)
+        layout->addWidget(makeSep());
+        layout->addSpacing(14);
+
+        layout->addWidget(createSectionHeader("Manufacturer", [this]() {
+            clearAllManufacturers();
+            emit filtersChanged();
+        }));
+        layout->addSpacing(8);
+
+        // Search field
+        QLineEdit* mfgSearch = new QLineEdit();
+        mfgSearch->setPlaceholderText("Search manufacturers...");
+        mfgSearch->setClearButtonEnabled(true);
+        mfgSearch->setStyleSheet(QString(
+            "QLineEdit {"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
+            "   border-radius: 6px;"
+            "   padding: 6px 10px;"
+            "   font-size: 11px;"
+            "   color: %3;"
+            "}"
+            "QLineEdit:focus { border-color: %4; }"
+        ).arg(AppTheme::colors().bgInput, AppTheme::colors().borderInput,
+              AppTheme::colors().textPrimary, AppTheme::colors().borderFocus));
+        layout->addWidget(mfgSearch);
+        layout->addSpacing(6);
+
+        // Manufacturer checkboxes container
+        m_mfgContainer = new QWidget();
+        m_mfgContainer->setStyleSheet("background: transparent;");
+        m_mfgLayout = new QVBoxLayout(m_mfgContainer);
+        m_mfgLayout->setContentsMargins(0, 0, 0, 0);
+        m_mfgLayout->setSpacing(2);
+
         for (const auto& mfg : allManufacturers) {
             QString label = QString::fromStdWString(mfg);
             QCheckBox* check = createCheckbox(label, false);
             m_manufacturerChecks[mfg] = check;
-            layout->addWidget(check);
+            m_mfgLayout->addWidget(check);
+            connect(check, &QCheckBox::stateChanged, this, &FilterPopupWidget::filtersChanged);
         }
+
+        layout->addWidget(m_mfgContainer);
+
+        connect(mfgSearch, &QLineEdit::textChanged, this, &FilterPopupWidget::onManufacturerSearchChanged);
     }
-    
-    layout->addSpacing(8);
-    
-    // === Buttons row ===
-    QHBoxLayout* buttonsLayout = new QHBoxLayout();
-    buttonsLayout->setSpacing(8);
-    
-    // Clear All button
-    QPushButton* clearAllBtn = new QPushButton("Clear All");
-    clearAllBtn->setFixedHeight(32);
-    clearAllBtn->setStyleSheet(QString(
-        "QPushButton {"
-        "   background-color: %1;"
-        "   color: %2;"
-        "   border: 1px solid %3;"
-        "   border-radius: 4px;"
-        "   padding: 6px 12px;"
-        "   font-size: 11px;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: %4;"
-        "   color: %5;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: %6;"
-        "}"
-    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
-          AppTheme::colors().borderStrong, AppTheme::colors().bgHover,
-          AppTheme::colors().textPrimary, AppTheme::colors().bgBase));
-    connect(clearAllBtn, &QPushButton::clicked, this, [this]() {
-        // Block signals
-        m_criticalCheck->blockSignals(true);
-        m_warningsCheck->blockSignals(true);
-        m_healthyCheck->blockSignals(true);
-        m_criticalDevicesCheck->blockSignals(true);
-        m_importantDevicesCheck->blockSignals(true);
-        m_optionalDevicesCheck->blockSignals(true);
-        m_virtualDevicesCheck->blockSignals(true);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->blockSignals(true);
-        }
-        
-        // Uncheck all
-        m_criticalCheck->setChecked(false);
-        m_warningsCheck->setChecked(false);
-        m_healthyCheck->setChecked(false);
-        m_criticalDevicesCheck->setChecked(false);
-        m_importantDevicesCheck->setChecked(false);
-        m_optionalDevicesCheck->setChecked(false);
-        m_virtualDevicesCheck->setChecked(false);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->setChecked(false);
-        }
-        
-        // Unblock signals
-        m_criticalCheck->blockSignals(false);
-        m_warningsCheck->blockSignals(false);
-        m_healthyCheck->blockSignals(false);
-        m_criticalDevicesCheck->blockSignals(false);
-        m_importantDevicesCheck->blockSignals(false);
-        m_optionalDevicesCheck->blockSignals(false);
-        m_virtualDevicesCheck->blockSignals(false);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->blockSignals(false);
-        }
-        
-        emit filtersChanged();
-    });
-    buttonsLayout->addWidget(clearAllBtn);
-    
-    // Select All button
-    QPushButton* selectAllBtn = new QPushButton("Select All");
-    selectAllBtn->setFixedHeight(32);
-    selectAllBtn->setStyleSheet(QString(
-        "QPushButton {"
-        "   background-color: %1;"
-        "   color: %2;"
-        "   border: 1px solid %3;"
-        "   border-radius: 4px;"
-        "   padding: 6px 12px;"
-        "   font-size: 11px;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: %4;"
-        "   color: %5;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: %6;"
-        "}"
-    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textSecondary,
-          AppTheme::colors().borderStrong, AppTheme::colors().bgHover,
-          AppTheme::colors().textPrimary, AppTheme::colors().bgBase));
-    connect(selectAllBtn, &QPushButton::clicked, this, [this]() {
-        // Block signals to prevent multiple filter updates
-        m_criticalCheck->blockSignals(true);
-        m_warningsCheck->blockSignals(true);
-        m_healthyCheck->blockSignals(true);
-        m_criticalDevicesCheck->blockSignals(true);
-        m_importantDevicesCheck->blockSignals(true);
-        m_optionalDevicesCheck->blockSignals(true);
-        m_virtualDevicesCheck->blockSignals(true);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->blockSignals(true);
-        }
-        
-        // Check all
-        m_criticalCheck->setChecked(true);
-        m_warningsCheck->setChecked(true);
-        m_healthyCheck->setChecked(true);
-        m_criticalDevicesCheck->setChecked(true);
-        m_importantDevicesCheck->setChecked(true);
-        m_optionalDevicesCheck->setChecked(true);
-        m_virtualDevicesCheck->setChecked(true);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->setChecked(true);
-        }
-        
-        // Unblock signals
-        m_criticalCheck->blockSignals(false);
-        m_warningsCheck->blockSignals(false);
-        m_healthyCheck->blockSignals(false);
-        m_criticalDevicesCheck->blockSignals(false);
-        m_importantDevicesCheck->blockSignals(false);
-        m_optionalDevicesCheck->blockSignals(false);
-        m_virtualDevicesCheck->blockSignals(false);
-        for (auto& [mfg, check] : m_manufacturerChecks) {
-            check->blockSignals(false);
-        }
-        
-        // Emit ONCE
-        emit filtersChanged();
-    });
-    buttonsLayout->addWidget(selectAllBtn);
-    
-    layout->addLayout(buttonsLayout);
-    
+
     layout->addStretch();
-    
-    scrollArea->setWidget(contentWidget);
+
+    scrollArea->setWidget(content);
     mainLayout->addWidget(scrollArea);
-    
-    // Connect all checkboxes
-    auto connectCheck = [this](QCheckBox* check) {
-        connect(check, &QCheckBox::stateChanged, this, &FilterPopupWidget::filtersChanged);
-    };
-    
-    connectCheck(m_criticalCheck);
-    connectCheck(m_warningsCheck);
-    connectCheck(m_healthyCheck);
-    connectCheck(m_criticalDevicesCheck);
-    connectCheck(m_importantDevicesCheck);
-    connectCheck(m_optionalDevicesCheck);
-    connectCheck(m_virtualDevicesCheck);
-    for (auto& [mfg, check] : m_manufacturerChecks) {
-        connectCheck(check);
+}
+
+// ============================================================================
+// Section header with inline Clear link
+// ============================================================================
+
+QWidget* FilterPopupWidget::createSectionHeader(const QString& title,
+                                                 std::function<void()> onClear)
+{
+    QWidget* row = new QWidget();
+    row->setStyleSheet("background: transparent;");
+    QHBoxLayout* hl = new QHBoxLayout(row);
+    hl->setContentsMargins(0, 0, 0, 0);
+    hl->setSpacing(0);
+
+    QLabel* titleLabel = new QLabel(title);
+    {
+        QFont f = titleLabel->font();
+        f.setPointSize(11);
+        f.setWeight(QFont::DemiBold);
+        titleLabel->setFont(f);
+        titleLabel->setStyleSheet(QString("color: %1; background: transparent;")
+            .arg(AppTheme::colors().textPrimary));
+    }
+    hl->addWidget(titleLabel);
+    hl->addStretch();
+
+    QPushButton* clearBtn = new QPushButton("Clear");
+    {
+        QFont f = clearBtn->font();
+        f.setPointSize(10);
+        clearBtn->setFont(f);
+        clearBtn->setFlat(true);
+        clearBtn->setCursor(Qt::PointingHandCursor);
+        clearBtn->setStyleSheet(QString(
+            "QPushButton { color: %1; background: transparent; border: none; padding: 0px; }"
+            "QPushButton:hover { color: %2; }"
+        ).arg(AppTheme::colors().textMuted, AppTheme::colors().accent));
+    }
+    connect(clearBtn, &QPushButton::clicked, this, [onClear]() { onClear(); });
+    hl->addWidget(clearBtn);
+
+    return row;
+}
+
+// ============================================================================
+// Chip row
+// ============================================================================
+
+QWidget* FilterPopupWidget::createChipRow(const QStringList& labels,
+                                           std::vector<QPushButton*>& chips)
+{
+    QWidget* row = new QWidget();
+    row->setStyleSheet("background: transparent;");
+
+    // Use a grid that wraps after every 3 items so chips always fit within
+    // the popup width without horizontal overflow. For ≤3 labels a single
+    // row is used; for 4 labels a 2×2 grid is used.
+    const int cols = (labels.size() <= 3) ? labels.size() : 2;
+    QGridLayout* grid = new QGridLayout(row);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setHorizontalSpacing(6);
+    grid->setVerticalSpacing(6);
+
+    for (int i = 0; i < labels.size(); ++i) {
+        QPushButton* chip = createChip(labels[i]);
+        // Chips expand horizontally to fill their grid cell evenly
+        chip->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        chips.push_back(chip);
+        grid->addWidget(chip, i / cols, i % cols);
+        connect(chip, &QPushButton::clicked, this, [this, chip]() {
+            chip->setProperty("active", !chip->property("active").toBool());
+            updateChipStyle(chip);
+            emit filtersChanged();
+        });
+    }
+    return row;
+}
+
+QPushButton* FilterPopupWidget::createChip(const QString& label)
+{
+    QPushButton* chip = new QPushButton(label);
+    chip->setProperty("active", false);
+    chip->setCursor(Qt::PointingHandCursor);
+    {
+        QFont f = chip->font();
+        f.setPointSize(10);
+        chip->setFont(f);
+    }
+    updateChipStyle(chip);
+    return chip;
+}
+
+void FilterPopupWidget::updateChipStyle(QPushButton* chip)
+{
+    bool active = chip->property("active").toBool();
+    if (active) {
+        chip->setStyleSheet(QString(
+            "QPushButton {"
+            "   background-color: %1;"
+            "   color: %2;"
+            "   border: 1px solid %3;"
+            "   border-radius: 6px;"
+            "   padding: 4px 12px;"
+            "   font-weight: bold;"
+            "}"
+            "QPushButton:hover { background-color: %4; }"
+        ).arg(AppTheme::colors().bgButtonActive,
+              AppTheme::colors().accentText,
+              AppTheme::colors().borderActive,
+              AppTheme::colors().accentBg));
+    } else {
+        chip->setStyleSheet(QString(
+            "QPushButton {"
+            "   background-color: %1;"
+            "   color: %2;"
+            "   border: 1px solid %3;"
+            "   border-radius: 6px;"
+            "   padding: 4px 12px;"
+            "}"
+            "QPushButton:hover {"
+            "   background-color: %4;"
+            "   color: %5;"
+            "   border-color: %6;"
+            "}"
+        ).arg(AppTheme::colors().bgButtonNeutral,
+              AppTheme::colors().textSecondary,
+              AppTheme::colors().borderNormal,
+              AppTheme::colors().bgHover,
+              AppTheme::colors().textPrimary,
+              AppTheme::colors().borderStrong));
     }
 }
 
-QWidget* FilterPopupWidget::createSection(const QString& title)
-{
-    QLabel* header = new QLabel(title);
-    header->setStyleSheet(QString(
-        "color: %1;"
-        "font-weight: bold;"
-        "font-size: 12px;"
-        "padding-top: 4px;"
-        "padding-bottom: 4px;"
-    ).arg(AppTheme::colors().accentText));
-    return header;
-}
+// ============================================================================
+// Manufacturer checkbox
+// ============================================================================
 
 QCheckBox* FilterPopupWidget::createCheckbox(const QString& label, bool checked)
 {
     QCheckBox* check = new QCheckBox(label);
     check->setChecked(checked);
     check->setStyleSheet(QString(
-        "QCheckBox {"
-        "   color: %1;"
-        "   font-size: 11px;"
-        "   spacing: 8px;"
-        "}"
-        "QCheckBox::indicator {"
-        "   width: 16px;"
-        "   height: 16px;"
-        "   border: 1px solid %2;"
-        "   border-radius: 3px;"
-        "   background-color: %3;"
-        "}"
-        "QCheckBox::indicator:checked {"
-        "   background-color: %4;"
-        "   border-color: %4;"
-        "}"
-        "QCheckBox:hover {"
-        "   color: %5;"
-        "}"
+        "QCheckBox { color: %1; font-size: 11px; spacing: 8px; background: transparent; }"
+        "QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid %2; border-radius: 3px; background-color: %3; }"
+        "QCheckBox::indicator:checked { background-color: %4; border-color: %4; }"
+        "QCheckBox:hover { color: %5; }"
     ).arg(AppTheme::colors().textSecondary, AppTheme::colors().borderStrong,
           AppTheme::colors().bgCodeBlock, AppTheme::colors().accent,
           AppTheme::colors().textPrimary));
     return check;
 }
 
+// ============================================================================
+// Clear helpers
+// ============================================================================
+
+void FilterPopupWidget::clearAllChips(std::vector<QPushButton*>& chips)
+{
+    for (auto* chip : chips) {
+        chip->setProperty("active", false);
+        updateChipStyle(chip);
+    }
+}
+
+void FilterPopupWidget::clearAllManufacturers()
+{
+    for (auto& [mfg, check] : m_manufacturerChecks) {
+        check->blockSignals(true);
+        check->setChecked(false);
+        check->blockSignals(false);
+    }
+}
+
+void FilterPopupWidget::onManufacturerSearchChanged(const QString& text)
+{
+    QString lower = text.toLower();
+    for (auto& [mfg, check] : m_manufacturerChecks) {
+        bool visible = lower.isEmpty() ||
+                       QString::fromStdWString(mfg).toLower().contains(lower);
+        check->setVisible(visible);
+    }
+}
+
+// ============================================================================
+// Filter state
+// ============================================================================
+
+int FilterPopupWidget::activeFilterCount() const
+{
+    int count = 0;
+    for (auto* chip : m_healthChips)
+        if (chip->property("active").toBool()) ++count;
+    for (auto* chip : m_importanceChips)
+        if (chip->property("active").toBool()) ++count;
+    for (const auto& [mfg, check] : m_manufacturerChecks)
+        if (check->isChecked()) ++count;
+    return count;
+}
+
 FilterPopupWidget::FilterState FilterPopupWidget::getFilterState() const
 {
     FilterState state;
-    
-    // Health
-    state.showCritical = m_criticalCheck->isChecked();
-    state.showWarnings = m_warningsCheck->isChecked();
-    state.showHealthy = m_healthyCheck->isChecked();
-    
-    // Importance
-    state.showCriticalDevices = m_criticalDevicesCheck->isChecked();
-    state.showImportantDevices = m_importantDevicesCheck->isChecked();
-    state.showOptionalDevices = m_optionalDevicesCheck->isChecked();
-    state.showVirtualDevices = m_virtualDevicesCheck->isChecked();
-    
-    // Manufacturers
-    for (const auto& [mfg, check] : m_manufacturerChecks) {
-        if (check->isChecked()) {
-            state.selectedManufacturers.insert(mfg);
-        }
+
+    // Health chips: Critical=0, Warnings=1, Healthy=2
+    if (m_healthChips.size() >= 3) {
+        state.showCritical = m_healthChips[0]->property("active").toBool();
+        state.showWarnings = m_healthChips[1]->property("active").toBool();
+        state.showHealthy  = m_healthChips[2]->property("active").toBool();
     }
-    
+
+    // Importance chips: Critical=0, Important=1, Optional=2, Virtual=3
+    if (m_importanceChips.size() >= 4) {
+        state.showCriticalDevices  = m_importanceChips[0]->property("active").toBool();
+        state.showImportantDevices = m_importanceChips[1]->property("active").toBool();
+        state.showOptionalDevices  = m_importanceChips[2]->property("active").toBool();
+        state.showVirtualDevices   = m_importanceChips[3]->property("active").toBool();
+    }
+
+    for (const auto& [mfg, check] : m_manufacturerChecks)
+        if (check->isChecked())
+            state.selectedManufacturers.insert(mfg);
+
     return state;
 }
 
 void FilterPopupWidget::setFilterState(const FilterState& state)
 {
-    m_criticalCheck->setChecked(state.showCritical);
-    m_warningsCheck->setChecked(state.showWarnings);
-    m_healthyCheck->setChecked(state.showHealthy);
-    
-    m_criticalDevicesCheck->setChecked(state.showCriticalDevices);
-    m_importantDevicesCheck->setChecked(state.showImportantDevices);
-    m_optionalDevicesCheck->setChecked(state.showOptionalDevices);
-    m_virtualDevicesCheck->setChecked(state.showVirtualDevices);
-    
-    for (auto& [mfg, check] : m_manufacturerChecks) {
-        bool selected = state.selectedManufacturers.count(mfg) > 0;
-        check->setChecked(selected);
+    if (m_healthChips.size() >= 3) {
+        m_healthChips[0]->setProperty("active", state.showCritical);
+        m_healthChips[1]->setProperty("active", state.showWarnings);
+        m_healthChips[2]->setProperty("active", state.showHealthy);
+        for (auto* c : m_healthChips) updateChipStyle(c);
     }
+    if (m_importanceChips.size() >= 4) {
+        m_importanceChips[0]->setProperty("active", state.showCriticalDevices);
+        m_importanceChips[1]->setProperty("active", state.showImportantDevices);
+        m_importanceChips[2]->setProperty("active", state.showOptionalDevices);
+        m_importanceChips[3]->setProperty("active", state.showVirtualDevices);
+        for (auto* c : m_importanceChips) updateChipStyle(c);
+    }
+    for (auto& [mfg, check] : m_manufacturerChecks)
+        check->setChecked(state.selectedManufacturers.count(mfg) > 0);
 }
+
+// ============================================================================
+// Show / Close
+// ============================================================================
 
 void FilterPopupWidget::showRelativeTo(QWidget* anchor)
 {
     if (!anchor) return;
-    
-    // Position below and to the right of anchor
+
     QPoint pos = anchor->mapToGlobal(QPoint(anchor->width() - width(), anchor->height() + 4));
-    
-    // Adjust if would go off screen
+
     QScreen* screen = QApplication::screenAt(pos);
     if (screen) {
         QRect screenRect = screen->availableGeometry();
-        
-        if (pos.x() + width() > screenRect.right()) {
+        if (pos.x() + width() > screenRect.right())
             pos.setX(screenRect.right() - width() - 10);
-        }
-        if (pos.x() < screenRect.left()) {
+        if (pos.x() < screenRect.left())
             pos.setX(screenRect.left() + 10);
-        }
-        if (pos.y() + height() > screenRect.bottom()) {
+        if (pos.y() + height() > screenRect.bottom())
             pos.setY(anchor->mapToGlobal(QPoint(0, 0)).y() - height() - 4);
-        }
     }
-    
+
     move(pos);
     show();
     setFocus();
@@ -366,15 +415,11 @@ void FilterPopupWidget::showRelativeTo(QWidget* anchor)
 
 bool FilterPopupWidget::wasRecentlyClosed() const
 {
-    // Return true if closed within last 150ms
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-    return (now - m_closeTime) < 150;
+    return (QDateTime::currentMSecsSinceEpoch() - m_closeTime) < 150;
 }
 
 void FilterPopupWidget::focusOutEvent(QFocusEvent* event)
 {
-    // Qt::Popup flag handles closing on click-outside automatically
-    // We don't need to do anything here
     QFrame::focusOutEvent(event);
 }
 
@@ -387,7 +432,6 @@ void FilterPopupWidget::hideEvent(QHideEvent* event)
 
 bool FilterPopupWidget::event(QEvent* event)
 {
-    // Hide on escape key
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Escape) {

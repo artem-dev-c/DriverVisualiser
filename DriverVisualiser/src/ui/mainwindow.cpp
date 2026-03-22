@@ -112,6 +112,19 @@ void MainWindow::applyWindowTheme()
         QString("QWidget { background-color: %1; }").arg(c.bgBase));
     centralWidget()->setStyleSheet(
         QString("QWidget { background-color: %1; }").arg(c.bgBase));
+
+    // Global tooltip styling — matches current theme so it's never a jarring
+    // dark rectangle on light mode or vice versa
+    qApp->setStyleSheet(QString(
+        "QToolTip {"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
+        "   padding: 4px 8px;"
+        "   border-radius: 4px;"
+        "   font-size: 11px;"
+        "}"
+    ).arg(c.bgOverlay, c.textPrimary, c.borderStrong));
 }
 
 // ============================================================================
@@ -473,6 +486,7 @@ void MainWindow::populateDriverList()
 
     for (const auto& category : processedCategories) {
         CategorySectionWidget* section = new CategorySectionWidget(category, m_selectedLogDays);
+        m_categorySections.push_back(section);
         contentLayout->addWidget(section);
     }
 
@@ -523,12 +537,13 @@ void MainWindow::clearDriverList()
         delete item;
     }
 
-    m_dashboard     = nullptr;
-    m_timeline      = nullptr;
-    m_searchBar     = nullptr;
-    m_contentLayout = nullptr;
-    m_loadingWidget = nullptr;
-    m_loadingLabel  = nullptr;
+    m_dashboard        = nullptr;
+    m_timeline         = nullptr;
+    m_searchBar        = nullptr;
+    m_contentLayout    = nullptr;
+    m_loadingWidget    = nullptr;
+    m_loadingLabel     = nullptr;
+    m_categorySections.clear();
 }
 
 // ============================================================================
@@ -537,91 +552,44 @@ void MainWindow::clearDriverList()
 
 void MainWindow::applyFilters()
 {
-    if (!m_searchBar || !m_contentLayout) return;
+    if (!m_searchBar || m_categorySections.empty()) return;
 
-    QString searchText = m_searchBar->getSearchText().toLower();
-    FilterPopupWidget::FilterState filters = m_searchBar->getFilterState();
+    const QString searchText = m_searchBar->getSearchText().toLower();
+    const FilterPopupWidget::FilterState filters = m_searchBar->getFilterState();
 
-    std::vector<DriverInfo> filtered;
-
-    for (const auto& driver : m_allDrivers) {
-
-        if (!searchText.isEmpty()) {
-            bool matches = false;
-            if (QString::fromStdWString(driver.name).toLower().contains(searchText))            matches = true;
-            if (QString::fromStdWString(driver.manufacturer).toLower().contains(searchText))    matches = true;
-            if (QString::fromStdWString(driver.provider).toLower().contains(searchText))        matches = true;
-            if (QString::fromStdWString(driver.deviceClassName).toLower().contains(searchText)) matches = true;
-            if (!matches) continue;
-        }
-
-        bool hasHealthFilter = filters.showCritical || filters.showWarnings || filters.showHealthy;
-        if (hasHealthFilter) {
-            bool healthMatch = false;
-            if (filters.showCritical && driver.healthScore < 70)                             healthMatch = true;
-            if (filters.showWarnings && driver.healthScore >= 70 && driver.healthScore < 90) healthMatch = true;
-            if (filters.showHealthy  && driver.healthScore >= 90)                            healthMatch = true;
-            if (!healthMatch) continue;
-        }
-
-        bool hasImportanceFilter = filters.showCriticalDevices || filters.showImportantDevices ||
-                                   filters.showOptionalDevices  || filters.showVirtualDevices;
-        if (hasImportanceFilter) {
-            bool importanceMatch = false;
-            if (filters.showCriticalDevices  && driver.importanceLevel == DriverImportance::Critical)  importanceMatch = true;
-            if (filters.showImportantDevices && driver.importanceLevel == DriverImportance::Important) importanceMatch = true;
-            if (filters.showOptionalDevices  && driver.importanceLevel == DriverImportance::Optional)  importanceMatch = true;
-            if (filters.showVirtualDevices   && driver.importanceLevel == DriverImportance::Virtual)   importanceMatch = true;
-            if (!importanceMatch) continue;
-        }
-
-        if (!filters.selectedManufacturers.empty()) {
-            if (filters.selectedManufacturers.count(driver.manufacturer) == 0) continue;
-        }
-
-        filtered.push_back(driver);
+    // Delegate filtering to each section widget — it shows/hides individual
+    // driver cards and hides itself if no cards match. No widget destruction,
+    // no widget construction — just visibility changes, so filtering is instant.
+    bool anyVisible = false;
+    for (auto* section : m_categorySections) {
+        if (section->applyFilter(searchText, filters))
+            anyVisible = true;
     }
 
-    // Suppress repaints on both the scroll area and its viewport
-    // to eliminate flash during widget removal + rebuild
-    auto* scrollArea = ui->scrollAreaContents->parentWidget();
-    if (scrollArea) scrollArea->setUpdatesEnabled(false);
-    ui->scrollAreaContents->setUpdatesEnabled(false);
+    // Show/hide the "no results" label (last item in layout before stretch)
+    // We manage this separately since it's not a section widget.
+    // Find it by object name set during populateDriverList.
+    if (m_contentLayout) {
+        QWidget* noResults = m_contentLayout->parentWidget()
+            ? m_contentLayout->parentWidget()->findChild<QLabel*>("noResultsLabel")
+            : nullptr;
 
-    constexpr int ITEMS_TO_KEEP = 4;
-    int currentCount = m_contentLayout->count();
-    for (int i = currentCount - 1; i >= ITEMS_TO_KEEP; --i) {
-        QLayoutItem* item = m_contentLayout->takeAt(i);
-        if (item->widget()) {
-            item->widget()->hide();  // Hide before delete to avoid intermediate repaint
-            delete item->widget();
+        if (!anyVisible) {
+            if (!noResults) {
+                auto* lbl = new QLabel("No drivers match your search/filter criteria");
+                lbl->setObjectName("noResultsLabel");
+                lbl->setStyleSheet(QString(
+                    "QLabel { color: %1; font-size: 14px; padding: 40px; }"
+                ).arg(AppTheme::colors().textSecondary));
+                lbl->setAlignment(Qt::AlignCenter);
+                // Insert before the stretch (second-to-last item)
+                int stretchIdx = m_contentLayout->count() - 1;
+                m_contentLayout->insertWidget(stretchIdx, lbl);
+            }
+            if (noResults) noResults->setVisible(true);
+        } else {
+            if (noResults) noResults->setVisible(false);
         }
-        delete item;
-    }
-
-    if (filtered.empty()) {
-        QLabel* noResults = new QLabel("No drivers match your search/filter criteria");
-        noResults->setStyleSheet(QString(
-            "QLabel { color: %1; font-size: 14px; padding: 40px; }"
-        ).arg(AppTheme::colors().textSecondary));
-        noResults->setAlignment(Qt::AlignCenter);
-        m_contentLayout->addWidget(noResults);
-    } else {
-        auto rawCategories       = CategoryGrouper::groupByCategory(filtered);
-        auto processedCategories = CategoryProcessor::process(rawCategories);
-        for (const auto& category : processedCategories) {
-            CategorySectionWidget* section = new CategorySectionWidget(category, m_selectedLogDays);
-            m_contentLayout->addWidget(section);
-        }
-    }
-
-    m_contentLayout->addStretch();
-
-    // Re-enable painting — use update() to do a single clean repaint
-    ui->scrollAreaContents->setUpdatesEnabled(true);
-    if (scrollArea) {
-        scrollArea->setUpdatesEnabled(true);
-        scrollArea->update();
     }
 }
 

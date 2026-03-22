@@ -1,5 +1,6 @@
 #include "CategorySectionWidget.h"
 #include "DriverCardWidget.h"
+#include "DriverInfo.h"
 #include "AppTheme.h"
 #include "IconProvider.h"
 #include "CategoryIconMapper.h"
@@ -193,6 +194,70 @@ void CategorySectionWidget::populateDrivers()
         DriverCardWidget* card = new DriverCardWidget(driver, m_logDays);
         m_contentLayout->addWidget(card);
     }
+}
+
+bool CategorySectionWidget::applyFilter(const QString& searchText,
+                                        const FilterPopupWidget::FilterState& filters)
+{
+    const int n = static_cast<int>(m_category.sortedDrivers.size());
+    int visibleCount = 0;
+
+    for (int i = 0; i < n; ++i) {
+        const auto& driver = m_category.sortedDrivers[i];
+        QLayoutItem* item = m_contentLayout->itemAt(i);
+        if (!item || !item->widget()) continue;
+
+        bool visible = true;
+
+        // Search text filter
+        if (!searchText.isEmpty()) {
+            bool matches =
+                QString::fromStdWString(driver.name).toLower().contains(searchText)          ||
+                QString::fromStdWString(driver.manufacturer).toLower().contains(searchText)  ||
+                QString::fromStdWString(driver.provider).toLower().contains(searchText)      ||
+                QString::fromStdWString(driver.deviceClassName).toLower().contains(searchText);
+            if (!matches) visible = false;
+        }
+
+        // Health filter
+        if (visible) {
+            bool hasHealthFilter = filters.showCritical || filters.showWarnings || filters.showHealthy;
+            if (hasHealthFilter) {
+                bool healthMatch =
+                    (filters.showCritical && driver.healthScore < 70)                             ||
+                    (filters.showWarnings && driver.healthScore >= 70 && driver.healthScore < 90) ||
+                    (filters.showHealthy  && driver.healthScore >= 90);
+                if (!healthMatch) visible = false;
+            }
+        }
+
+        // Importance filter
+        if (visible) {
+            bool hasImportanceFilter = filters.showCriticalDevices || filters.showImportantDevices ||
+                                       filters.showOptionalDevices  || filters.showVirtualDevices;
+            if (hasImportanceFilter) {
+                bool importanceMatch =
+                    (filters.showCriticalDevices  && driver.importanceLevel == DriverImportance::Critical)  ||
+                    (filters.showImportantDevices && driver.importanceLevel == DriverImportance::Important) ||
+                    (filters.showOptionalDevices  && driver.importanceLevel == DriverImportance::Optional)  ||
+                    (filters.showVirtualDevices   && driver.importanceLevel == DriverImportance::Virtual);
+                if (!importanceMatch) visible = false;
+            }
+        }
+
+        // Manufacturer filter
+        if (visible && !filters.selectedManufacturers.empty()) {
+            if (filters.selectedManufacturers.count(driver.manufacturer) == 0)
+                visible = false;
+        }
+
+        item->widget()->setVisible(visible);
+        if (visible) ++visibleCount;
+    }
+
+    // Show the whole section only if at least one driver is visible
+    setVisible(visibleCount > 0);
+    return visibleCount > 0;
 }
 
 QString CategorySectionWidget::getHealthIndicatorText() const
