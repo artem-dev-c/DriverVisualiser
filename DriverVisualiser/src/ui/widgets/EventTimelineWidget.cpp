@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QScreen>
 #include <algorithm>
+#include <cmath>
 
 // ============================================================================
 // Construction
@@ -66,6 +67,35 @@ void EventTimelineWidget::setDayRange(int days)
     update();
 }
 
+EventTimelineWidget::Totals EventTimelineWidget::getTotals() const
+{
+    Totals t;
+    for (const auto& day : m_dayData) {
+        t.critical += day.criticalCount;
+        t.warnings += day.warningCount;
+        t.info     += day.infoCount;
+        t.swd      += day.swdCount;
+    }
+    return t;
+}
+
+EventTimelineWidget::BarMetrics EventTimelineWidget::computeBarMetrics() const
+{
+    int totalBars  = static_cast<int>(m_dayData.size());
+    if (totalBars == 0) return {4, 4, 8};
+
+    int chartWidth = width() - PADDING_LEFT - PADDING_RIGHT;
+
+    // Scale spacing down as bar count grows so bars always dominate over gaps.
+    // At 30 bars: spacing=4. At 90 bars: spacing=2. At 180 bars: spacing=1.
+    int spacing = std::max(1, BAR_SPACING - (totalBars > 90 ? 3 : totalBars > 45 ? 2 : 0));
+
+    int barWidth = (chartWidth - (totalBars - 1) * spacing) / totalBars;
+    barWidth = std::max(barWidth, 2);  // Minimum 2px per bar
+
+    return { barWidth, spacing, barWidth + spacing };
+}
+
 void EventTimelineWidget::aggregateEventsByDay()
 {
     m_dayData.clear();
@@ -102,7 +132,23 @@ void EventTimelineWidget::aggregateEventsByDay()
                 } else if (entry.level == L"Warning") {
                     day.warningCount++;
                 } else {
-                    day.infoCount++;
+                    bool isInfo = (entry.level == L"Information" || entry.level == L"Info");
+                    if (isInfo && entry.deviceInstanceId.has_value()) {
+                        std::wstring deviceId = entry.deviceInstanceId.value();
+                        std::transform(deviceId.begin(), deviceId.end(), deviceId.begin(), ::towlower);
+                        bool isSoftware = (deviceId.find(L"swd\\") == 0);
+
+                        if (isSoftware) {
+                            // SWD\ info event — count separately, rendered dimmed on graph
+                            day.swdCount++;
+                        } else {
+                            // Hardware info event
+                            day.infoCount++;
+                        }
+                    } else if (isInfo) {
+                        // No device ID — treat as hardware info
+                        day.infoCount++;
+                    }
                 }
                 break;
             }
@@ -185,47 +231,39 @@ void EventTimelineWidget::drawGridLines(QPainter& painter, int maxCount)
     int chartHeight = height() - PADDING_TOP - PADDING_BOTTOM;
     int chartY = PADDING_TOP;
 
-    painter.setPen(QPen(QColor(AppTheme::colors().borderSubtle), 1, Qt::DotLine));
-    
-    // Draw horizontal grid lines at useful integer values
     QFont labelFont = painter.font();
     labelFont.setPointSize(8);
     painter.setFont(labelFont);
 
-    // Determine which values to show based on maxCount
-    std::vector<int> values;
-    if (maxCount <= 5) {
-        // Show every integer: 0, 1, 2, 3, 4, 5
-        for (int v = 0; v <= maxCount; ++v) {
-            values.push_back(v);
-        }
-    } else if (maxCount <= 10) {
-        // Show every 2: 0, 2, 4, 6, 8, 10
-        for (int v = 0; v <= maxCount; v += 2) {
-            values.push_back(v);
-        }
-    } else {
-        // Show 5 evenly spaced values using integer division
-        for (int i = 0; i <= 4; ++i) {
-            int value = (maxCount * (4 - i)) / 4;
-            values.push_back(value);
-        }
-    }
+    // Choose evenly spaced Y pixel positions in log space so the visual gaps
+    // between lines are equal regardless of the log scale used for bars.
+    // We pick NUM_LINES evenly spaced fractions of chartHeight (0 = bottom, 1 = top),
+    // then back-calculate the event count each fraction corresponds to so the
+    // label shows an honest count aligned exactly with the bar height.
+    static constexpr int NUM_LINES = 5;
+    double maxLogValue = std::log1p(static_cast<double>(maxCount));
 
-    // Draw grid lines at positions that match bar heights
-    for (int value : values) {
-        // Calculate Y position based on value (bars are drawn bottom-up)
-        // A bar with height `value` reaches: chartY + chartHeight - (value * chartHeight / maxCount)
-        int y = chartY + chartHeight - (value * chartHeight / maxCount);
-        
+    for (int i = 0; i < NUM_LINES; ++i) {
+        // fraction 0.0 = bottom of chart (0 events), 1.0 = top (maxCount events)
+        double fraction = static_cast<double>(i) / (NUM_LINES - 1);
+
+        // Pixel Y: fraction 0 -> chartY + chartHeight, fraction 1 -> chartY
+        int y = chartY + chartHeight - qRound(fraction * chartHeight);
+
+        // Back-calculate the event count this pixel height represents
+        // inverse of: fraction = log1p(count) / log1p(maxCount)
+        int labelValue = (fraction == 0.0)
+            ? 0
+            : qRound(std::expm1(fraction * maxLogValue));
+
         // Draw dotted line
         painter.setPen(QPen(QColor(AppTheme::colors().borderSubtle), 1, Qt::DotLine));
         painter.drawLine(PADDING_LEFT, y, width() - PADDING_RIGHT, y);
-        
-        // Draw Y-axis number on left
+
+        // Draw Y-axis label
         painter.setPen(AppTheme::colors().textMuted);
         QRect labelRect(2, y - 10, PADDING_LEFT - 6, 20);
-        painter.drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, QString::number(value));
+        painter.drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, QString::number(labelValue));
     }
 }
 
@@ -238,53 +276,65 @@ void EventTimelineWidget::drawBars(QPainter& painter, int maxCount)
     int chartY = PADDING_TOP;
 
     int totalBars = static_cast<int>(m_dayData.size());
-    int barWidth = (chartWidth - (totalBars - 1) * BAR_SPACING) / totalBars;
-    barWidth = std::max(barWidth, 4);  // Minimum 4px per bar
+    const auto bm = computeBarMetrics();
+    const int barWidth = bm.barWidth;
+    const int barSpacing = bm.spacing;
 
     for (int i = 0; i < m_dayData.size(); ++i) {
         const auto& day = m_dayData[i];
-        int x = PADDING_LEFT + i * (barWidth + BAR_SPACING);
+        int x = PADDING_LEFT + i * (barWidth + barSpacing);
 
         if (day.totalCount() == 0) {
-            // Empty day - show subtle baseline
+            // No meaningful events — draw subtle baseline tick.
+            // Day may still have SWD background events so remains hoverable/clickable.
             painter.setPen(Qt::NoPen);
-            painter.setBrush(QColor(AppTheme::colors().borderSubtle));
+            painter.setBrush(QColor(day.swdCount > 0
+                ? AppTheme::colors().borderNormal   // Slightly more visible if SWD activity exists
+                : AppTheme::colors().borderSubtle));
             QRect baseRect(x, chartY + chartHeight - 2, barWidth, 2);
             painter.drawRect(baseRect);
+
+            // Hover highlight even on empty bars so cursor feedback still works
+            if (i == m_hoveredBarIndex && day.hasAnyEvents()) {
+                painter.setBrush(QColor(255, 255, 255, 10));
+                painter.drawRect(QRect(x, chartY, barWidth, chartHeight));
+            }
             continue;
         }
 
-        // Calculate segment heights (proportional to maxCount)
-        double scale = double(chartHeight) / maxCount;
-        int criticalHeight = qRound(day.criticalCount * scale);
-        int warningHeight = qRound(day.warningCount * scale);
-        int infoHeight = qRound(day.infoCount * scale);
+        // Use logarithmic scaling for heights (log(1 + count))
+        // This prevents 250 info events from completely overwhelming 3 warnings
+        auto logScale = [](int count) -> double {
+            return std::log1p(static_cast<double>(count));  // log(1 + x)
+        };
+        
+        double maxLogValue = logScale(maxCount);
+        double scale = chartHeight / maxLogValue;
+        
+        int criticalHeight = qRound(logScale(day.criticalCount) * scale);
+        int warningHeight  = qRound(logScale(day.warningCount)  * scale);
+        int infoHeight     = qRound(logScale(day.infoCount)     * scale);
+
+        // Ensure minimum visible height for any non-zero count
+        if (day.criticalCount > 0 && criticalHeight < 3) criticalHeight = 3;
+        if (day.warningCount  > 0 && warningHeight  < 3) warningHeight  = 3;
+        if (day.infoCount     > 0 && infoHeight     < 3) infoHeight     = 3;
 
         int totalBarHeight = criticalHeight + warningHeight + infoHeight;
         int currentY = chartY + chartHeight - totalBarHeight;
 
-        // Draw stacked segments (bottom to top: critical, warning, info)
+        // Draw stacked segments bottom to top: critical, warning, info
         painter.setPen(Qt::NoPen);
 
         // Critical (red) - bottom
         if (criticalHeight > 0) {
             QRect rect(x, currentY + warningHeight + infoHeight, barWidth, criticalHeight);
-            
-            // Only round top corners if this is the top segment
+
             if (warningHeight == 0 && infoHeight == 0) {
                 QPainterPath path;
-                path.addRoundedRect(rect, 0, 0);
-                path.setFillRule(Qt::WindingFill);
-                
-                // Round top corners only
-                QPainterPath topCorners;
-                topCorners.addRoundedRect(
-                    QRect(x, currentY + warningHeight + infoHeight, barWidth, BAR_TOP_RADIUS * 2),
-                    BAR_TOP_RADIUS, BAR_TOP_RADIUS
-                );
-                
+                path.addRoundedRect(rect, BAR_TOP_RADIUS, BAR_TOP_RADIUS);
                 painter.setBrush(QColor("#e74c3c"));
-                painter.drawPath(path.united(topCorners));
+                painter.drawPath(path);
             } else {
                 painter.setBrush(QColor("#e74c3c"));
                 painter.drawRect(rect);
@@ -294,9 +344,8 @@ void EventTimelineWidget::drawBars(QPainter& painter, int maxCount)
         // Warning (orange) - middle
         if (warningHeight > 0) {
             QRect rect(x, currentY + infoHeight, barWidth, warningHeight);
-            
+
             if (infoHeight == 0) {
-                // Top segment - round top corners
                 QPainterPath path;
                 path.addRoundedRect(rect, BAR_TOP_RADIUS, BAR_TOP_RADIUS);
                 painter.setBrush(QColor("#f39c12"));
@@ -310,8 +359,6 @@ void EventTimelineWidget::drawBars(QPainter& painter, int maxCount)
         // Info (blue) - top
         if (infoHeight > 0) {
             QRect rect(x, currentY, barWidth, infoHeight);
-            
-            // Always top segment - round top corners
             QPainterPath path;
             path.addRoundedRect(rect, BAR_TOP_RADIUS, BAR_TOP_RADIUS);
             painter.setBrush(QColor("#5dade2"));
@@ -341,13 +388,15 @@ void EventTimelineWidget::drawXAxisLabels(QPainter& painter)
     painter.setFont(labelFont);
 
     int totalBars = static_cast<int>(m_dayData.size());
-    int barWidth = (chartWidth - (totalBars - 1) * BAR_SPACING) / totalBars;
+    const auto bm = computeBarMetrics();
+    const int barWidth = bm.barWidth;
+    const int barSpacing = bm.spacing;
 
     // Show week markers (every 7 days) but ensure first label doesn't get cut off
     for (int i = 0; i < m_dayData.size(); i += 7) {
         const auto& day = m_dayData[i];
         
-        int x = PADDING_LEFT + i * (barWidth + BAR_SPACING);
+        int x = PADDING_LEFT + i * (barWidth + barSpacing);
 
         QString label = day.date.toString("MMM d");
         
@@ -367,7 +416,7 @@ void EventTimelineWidget::drawXAxisLabels(QPainter& painter)
     if (!m_dayData.empty()) {
         const auto& lastDay = m_dayData.back();
         if (lastDay.date == QDate::currentDate()) {
-            int x = PADDING_LEFT + (totalBars - 1) * (barWidth + BAR_SPACING);
+            int x = PADDING_LEFT + (totalBars - 1) * (barWidth + barSpacing);
 
             painter.setPen(AppTheme::colors().accent);
             QFont todayFont = labelFont;
@@ -408,7 +457,7 @@ void EventTimelineWidget::mousePressEvent(QMouseEvent* event)
         int index = barIndexAtPosition(event->pos());
         if (index >= 0 && index < m_dayData.size()) {
             const auto& day = m_dayData[index];
-            if (day.totalCount() > 0) {
+            if (day.hasAnyEvents()) {
                 // Hide tooltip first
                 hideTooltip();
                 
@@ -449,13 +498,15 @@ int EventTimelineWidget::barIndexAtPosition(const QPoint& pos) const
     }
 
     int totalBars = static_cast<int>(m_dayData.size());
-    int barWidth = (chartWidth - (totalBars - 1) * BAR_SPACING) / totalBars;
+    const auto bm = computeBarMetrics();
+    const int barWidth = bm.barWidth;
+    const int barSpacing = bm.spacing;
 
     int relativeX = pos.x() - PADDING_LEFT;
     if (relativeX < 0) return -1;
 
     // Calculate which bar column we're in (including spacing)
-    int columnWidth = barWidth + BAR_SPACING;
+    int columnWidth = barWidth + barSpacing;
     int index = relativeX / columnWidth;
     
     if (index >= totalBars) return -1;
@@ -474,9 +525,11 @@ QRect EventTimelineWidget::barRect(int index, int maxCount) const
     int chartWidth = width() - PADDING_LEFT - PADDING_RIGHT;
     int chartHeight = height() - PADDING_TOP - PADDING_BOTTOM;
     int totalBars = static_cast<int>(m_dayData.size());
-    int barWidth = (chartWidth - (totalBars - 1) * BAR_SPACING) / totalBars;
+    const auto bm = computeBarMetrics();
+    const int barWidth = bm.barWidth;
+    const int barSpacing = bm.spacing;
 
-    int x = PADDING_LEFT + index * (barWidth + BAR_SPACING);
+    int x = PADDING_LEFT + index * (barWidth + barSpacing);
     int y = PADDING_TOP;
 
     return QRect(x, y, barWidth, chartHeight);
@@ -484,12 +537,12 @@ QRect EventTimelineWidget::barRect(int index, int maxCount) const
 
 void EventTimelineWidget::showTooltip(const QPoint& pos, const DayData& day)
 {
-    if (day.totalCount() == 0) {
+    if (!day.hasAnyEvents()) {
         hideTooltip();
         return;
     }
 
-    // Build simple HTML content (background is in QLabel stylesheet)
+    // Build HTML content
     QString html = QString(
         "<div style='font-size: 11px;'>"
         "<div style='font-weight: bold; font-size: 12px; margin-bottom: 8px; color: %1;'>%2</div>"
@@ -498,7 +551,7 @@ void EventTimelineWidget::showTooltip(const QPoint& pos, const DayData& day)
         day.date.toString("MMMM d, yyyy")
     );
 
-    // Add counts with EMPTY colored badges NEXT TO colored text
+    // Meaningful event counts
     if (day.criticalCount > 0) {
         html += QString(
             "<div style='margin: 4px 0; display: flex; align-items: center;'>"
@@ -528,10 +581,27 @@ void EventTimelineWidget::showTooltip(const QPoint& pos, const DayData& day)
         ).arg(day.infoCount);
     }
 
-    // Hint text at bottom
+    // SWD background events — separated, muted, explained
+    if (day.swdCount > 0) {
+        // Add a subtle divider if there were also meaningful events above
+        if (day.totalCount() > 0) {
+            html += QString(
+                "<div style='margin: 8px 0 4px 0; border-top: 1px solid %1;'></div>"
+            ).arg(AppTheme::colors().borderSubtle);
+        }
+        html += QString(
+            "<div style='margin: 4px 0; color: %1; font-size: 10px;'>"
+            "+ %2 software background event%3 (SWD)"
+            "</div>"
+        ).arg(AppTheme::colors().textMuted)
+         .arg(day.swdCount)
+         .arg(day.swdCount > 1 ? "s" : "");
+    }
+
+    // Click hint
     html += QString(
         "<div style='margin-top: 10px; padding-top: 8px; border-top: 1px solid %1; "
-        "color: %2; font-size: 10px; font-style: italic;'>Click bar to view details</div>"
+        "color: %2; font-size: 10px; font-style: italic;'>Click to view details</div>"
     ).arg(AppTheme::colors().borderSubtle, AppTheme::colors().textMuted);
 
     html += "</div>";
@@ -541,7 +611,7 @@ void EventTimelineWidget::showTooltip(const QPoint& pos, const DayData& day)
 
     // Position above cursor
     QPoint globalPos = mapToGlobal(pos);
-    m_tooltipLabel->move(globalPos.x() - m_tooltipLabel->width() / 2, 
+    m_tooltipLabel->move(globalPos.x() - m_tooltipLabel->width() / 2,
                          globalPos.y() - m_tooltipLabel->height() - 10);
     m_tooltipLabel->show();
     m_tooltipLabel->raise();

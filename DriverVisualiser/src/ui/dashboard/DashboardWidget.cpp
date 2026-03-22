@@ -184,13 +184,15 @@ QWidget* DashboardWidget::buildControlColumn()
 
     QHBoxLayout* toggleLayout = new QHBoxLayout();
     toggleLayout->setContentsMargins(0, 0, 0, 0);
-    toggleLayout->setSpacing(4);
+    toggleLayout->setSpacing(0);
 
-    auto makeToggleButton = [this](const QString& label, int days) -> QPushButton* {
+    // Position: 0=left, 1=middle, 2=right
+    auto makeToggleButton = [this](const QString& label, int days, int position) -> QPushButton* {
         QPushButton* btn = new QPushButton(label);
-        btn->setFixedHeight(28);
-        btn->setFixedWidth(40);
+        btn->setFixedHeight(32);
+        btn->setFixedWidth(66.6); // 200 total width / 3 buttons
         btn->setCheckable(false);
+        btn->setProperty("segmentPos", position);
 
         connect(btn, &QPushButton::clicked, this, [this, days]() {
             if (m_selectedLogDays != days) {
@@ -203,9 +205,9 @@ QWidget* DashboardWidget::buildControlColumn()
         return btn;
     };
 
-    m_log30Button  = makeToggleButton("30d",  30);
-    m_log90Button = makeToggleButton("90d", 90);
-    m_log180Button = makeToggleButton("180d", 180);
+    m_log30Button  = makeToggleButton("30d",  30,  0);
+    m_log90Button  = makeToggleButton("90d",  90,  1);
+    m_log180Button = makeToggleButton("180d", 180, 2);
 
     toggleLayout->addWidget(m_log30Button);
     toggleLayout->addWidget(m_log90Button);
@@ -421,42 +423,60 @@ void DashboardWidget::updateSystemInfoLabels(const SystemInfo& sysInfo)
 
 void DashboardWidget::updateLogWindowButtons()
 {
-    // Common inactive style
-    const QString inactiveStyle = QString(
-        "QPushButton {"
-        "   background-color: %1;"
-        "   color: %2;"
-        "   border: 1px solid %3;"
-        "   border-radius: 4px;"
-        "   font-size: 10px;"
-        "   padding: 2px 6px;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: %4;"
-        "   color: %5;"
-        "}"
-    ).arg(AppTheme::colors().bgButtonNeutral, AppTheme::colors().textMuted,
-          AppTheme::colors().borderNormal, AppTheme::colors().bgHover,
-          AppTheme::colors().textSecondary);
+    // Segmented control styled to match rescan/report buttons (height 32, font-size 11px).
+    // Buttons share borders: left has rounded left corners, right has rounded right corners,
+    // middle has none. Middle and right suppress the left border to avoid double lines.
+    auto applyStyle = [](QPushButton* btn, bool active, int pos) {
+        QString radius;
+        if      (pos == 0) radius = "border-top-left-radius: 6px; border-bottom-left-radius: 6px; border-top-right-radius: 0px; border-bottom-right-radius: 0px;";
+        else if (pos == 2) radius = "border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-top-left-radius: 0px; border-bottom-left-radius: 0px;";
+        else               radius = "border-radius: 0px;";
 
-    // Active style (selected day)
-    const QString activeStyle = QString(
-        "QPushButton {"
-        "   background-color: %1;"
-        "   color: %2;"
-        "   border: 1px solid %3;"
-        "   border-radius: 4px;"
-        "   font-size: 10px;"
-        "   font-weight: bold;"
-        "   padding: 2px 6px;"
-        "}"
-    ).arg(AppTheme::colors().bgBase, AppTheme::colors().accentText,
-          AppTheme::colors().accent);
+        QString leftBorder = (pos == 0) ? "" : "border-left: none;";
 
-    m_log30Button->setStyleSheet( m_selectedLogDays == 30   ? activeStyle : inactiveStyle);
-    m_log90Button->setStyleSheet(m_selectedLogDays == 90  ? activeStyle : inactiveStyle);
-    m_log180Button->setStyleSheet(m_selectedLogDays == 180  ? activeStyle : inactiveStyle);
+        if (active) {
+            btn->setStyleSheet(QString(
+                "QPushButton {"
+                "   background-color: %1;"
+                "   color: %2;"
+                "   border: 1px solid %3;"
+                "   %4 %5"
+                "   font-size: 11px;"
+                "   font-weight: bold;"
+                "   padding: 4px 10px;"
+                "}"
+            ).arg(AppTheme::colors().bgButtonActive,
+                  AppTheme::colors().accentText,
+                  AppTheme::colors().borderActive,
+                  radius, leftBorder));
+        } else {
+            btn->setStyleSheet(QString(
+                "QPushButton {"
+                "   background-color: %1;"
+                "   color: %2;"
+                "   border: 1px solid %3;"
+                "   %4 %5"
+                "   font-size: 11px;"
+                "   padding: 4px 10px;"
+                "}"
+                "QPushButton:hover {"
+                "   background-color: %6;"
+                "   color: %7;"
+                "}"
+            ).arg(AppTheme::colors().bgButtonNeutral,
+                  AppTheme::colors().textSecondary,
+                  AppTheme::colors().borderButtonNeutral,
+                  radius, leftBorder,
+                  AppTheme::colors().bgHover,
+                  AppTheme::colors().textPrimary));
+        }
+    };
+
+    applyStyle(m_log30Button,  m_selectedLogDays == 30,  0);
+    applyStyle(m_log90Button,  m_selectedLogDays == 90,  1);
+    applyStyle(m_log180Button, m_selectedLogDays == 180, 2);
 }
+
 
 // ============================================================================
 // Accessors

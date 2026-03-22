@@ -18,6 +18,7 @@ QT_END_NAMESPACE
 class CategorySectionWidget;
 class SearchFilterBar;
 class DashboardWidget;
+class EventTimelineWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -48,11 +49,12 @@ private:
     Ui::MainWindow *ui;
 
     // --- Widgets ---
-    DashboardWidget* m_dashboard     = nullptr;
-    SearchFilterBar* m_searchBar     = nullptr;
-    QVBoxLayout*     m_contentLayout = nullptr;
-    QWidget*         m_loadingWidget = nullptr;
-    QLabel*          m_loadingLabel  = nullptr;
+    DashboardWidget*     m_dashboard     = nullptr;
+    EventTimelineWidget* m_timeline      = nullptr;
+    SearchFilterBar*     m_searchBar     = nullptr;
+    QVBoxLayout*         m_contentLayout = nullptr;
+    QWidget*             m_loadingWidget = nullptr;
+    QLabel*              m_loadingLabel  = nullptr;
 
     // --- Async scan ---
     QFutureWatcher<std::vector<DriverInfo>>* m_scanWatcher = nullptr;

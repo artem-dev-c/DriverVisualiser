@@ -319,31 +319,129 @@ void MainWindow::populateDriverList()
         m_scanWatcher->setFuture(future);
     });
 
-    connect(m_dashboard, &DashboardWidget::logWindowChanged, this, [this](int days) {
-        m_selectedLogDays = days;
-    });
-
     connect(m_dashboard, &DashboardWidget::reportRequested, this, &MainWindow::onGenerateReportRequested);
 
     // =========================================================================
-    // Event Timeline Graph
+    // Event Timeline — header row (on bgBase) + chart card below
     // =========================================================================
 
     // Aggregate all error logs from all drivers and populate driver names
     std::vector<ErrorLogEntry> allErrorLogs;
     for (const auto& driver : m_allDrivers) {
         for (auto entry : driver.errorLog) {
-            // Add driver name to each error log entry
             entry.driverName = driver.name;
             allErrorLogs.push_back(entry);
         }
     }
 
-    EventTimelineWidget* timeline = new EventTimelineWidget();
-    timeline->setDayRange(30);  // Show 30 days by default
-    timeline->setEvents(allErrorLogs);
-    contentLayout->addWidget(timeline);
+    // --- Chart widget ---
+    m_timeline = new EventTimelineWidget();
+    m_timeline->setDayRange(m_selectedLogDays);
+    m_timeline->setEvents(allErrorLogs);
+
+    // --- Header row (sits on bgBase, above the card) ---
+    QWidget* timelineHeader = new QWidget();
+    timelineHeader->setStyleSheet("background: transparent;");
+    QHBoxLayout* headerLayout = new QHBoxLayout(timelineHeader);
+    headerLayout->setContentsMargins(4, 0, 4, 0);
+    headerLayout->setSpacing(0);
+
+    // Left side: "Past 30 Days" title + total count
+    auto* titleLabel = new QLabel(QString("Past %1 Days").arg(m_selectedLogDays));
+    {
+        QFont f = titleLabel->font();
+        f.setPointSize(10);
+        f.setWeight(QFont::DemiBold);
+        titleLabel->setFont(f);
+        titleLabel->setStyleSheet(QString("color: %1; background: transparent;")
+            .arg(AppTheme::colors().textPrimary));
+    }
+
+    auto* separatorDot = new QLabel(" · ");
+    separatorDot->setStyleSheet(QString("color: %1; background: transparent;")
+        .arg(AppTheme::colors().textMuted));
+
+    const auto totals = m_timeline->getTotals();
+    auto* totalLabel = new QLabel(QString("%1 events").arg(totals.total()));
+    {
+        QFont f = totalLabel->font();
+        f.setPointSize(10);
+        totalLabel->setFont(f);
+        totalLabel->setStyleSheet(QString("color: %1; background: transparent;")
+            .arg(AppTheme::colors().textSecondary));
+    }
+
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addWidget(separatorDot);
+    headerLayout->addWidget(totalLabel);
+    headerLayout->addStretch();
+
+    // Right side: legend entries — coloured square + label text + count
+    auto makeLegendEntry = [&](const QString& color, const QString& labelText, int count) {
+        QWidget* entry = new QWidget();
+        entry->setStyleSheet("background: transparent;");
+        QHBoxLayout* el = new QHBoxLayout(entry);
+        el->setContentsMargins(0, 0, 0, 0);
+        el->setSpacing(6);
+
+        // Small rounded square matching bar shape
+        QLabel* dot = new QLabel();
+        dot->setFixedSize(10, 10);
+        dot->setStyleSheet(QString(
+            "background-color: %1;"
+            "border-radius: 2px;"
+        ).arg(color));
+
+        // Label word in textSecondary, count number in severity colour
+        QLabel* text = new QLabel(QString("%1 <span style='color: %2; font-weight: bold;'>%3</span>")
+            .arg(labelText, color)
+            .arg(count));
+        text->setTextFormat(Qt::RichText);
+        {
+            QFont f = text->font();
+            f.setPointSize(9);
+            text->setFont(f);
+            text->setStyleSheet(QString("color: %1; background: transparent;")
+                .arg(AppTheme::colors().textSecondary));
+        }
+
+        el->addWidget(dot);
+        el->addWidget(text);
+        return entry;
+    };
+
+    headerLayout->addWidget(makeLegendEntry("#e74c3c", "Errors",   totals.critical));
+    headerLayout->addSpacing(16);
+    headerLayout->addWidget(makeLegendEntry("#f39c12", "Warnings", totals.warnings));
+    headerLayout->addSpacing(16);
+    headerLayout->addWidget(makeLegendEntry("#5dade2", "Info",     totals.info));
+    headerLayout->addSpacing(16);
+
+    // SWD legend — plain text, no square, explains the background noise concept
+    auto* swdLegendLabel = new QLabel(
+        QString("· <span style='color: %1;'>%2</span> software background (SWD, not shown on graph)")
+            .arg(AppTheme::colors().textMuted)
+            .arg(totals.swd));
+    swdLegendLabel->setTextFormat(Qt::RichText);
+    {
+        QFont f = swdLegendLabel->font();
+        f.setPointSize(9);
+        swdLegendLabel->setFont(f);
+        swdLegendLabel->setStyleSheet(QString("color: %1; background: transparent;")
+            .arg(AppTheme::colors().textMuted));
+    }
+    headerLayout->addWidget(swdLegendLabel);
+
+    contentLayout->addWidget(timelineHeader);
+    contentLayout->addSpacing(6);
+    contentLayout->addWidget(m_timeline);
     contentLayout->addSpacing(12);
+
+    // Wire log window toggle -> update timeline day range + refresh header labels
+    connect(m_dashboard, &DashboardWidget::logWindowChanged, this, [this, titleLabel, totalLabel](int days) {
+        m_selectedLogDays = days;
+        // Graph and header update on next rescan — not immediately
+    });
 
     // =========================================================================
     // Search / Filter Bar
@@ -426,6 +524,7 @@ void MainWindow::clearDriverList()
     }
 
     m_dashboard     = nullptr;
+    m_timeline      = nullptr;
     m_searchBar     = nullptr;
     m_contentLayout = nullptr;
     m_loadingWidget = nullptr;

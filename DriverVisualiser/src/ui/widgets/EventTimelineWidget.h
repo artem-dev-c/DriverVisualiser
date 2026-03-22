@@ -24,6 +24,17 @@ public:
     /// Set how many days to show (default: 30)
     void setDayRange(int days);
 
+    /// Aggregated totals across all days — used by the external header row
+    struct Totals {
+        int critical = 0;
+        int warnings = 0;
+        int info     = 0;
+        int swd      = 0;
+        /// Meaningful events only — matches what the bar chart displays
+        int total()  const { return critical + warnings + info; }
+    };
+    Totals getTotals() const;
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -35,11 +46,18 @@ private:
         QDate date;
         int criticalCount = 0;  // Critical + Error
         int warningCount = 0;
-        int infoCount = 0;
+        int infoCount = 0;      // Hardware info events
+        int swdCount = 0;       // SWD\ software device info events (tooltip only)
         std::vector<ErrorLogEntry> events;
 
+        /// Meaningful driver health events — used for bar height and scaling
         int totalCount() const {
             return criticalCount + warningCount + infoCount;
+        }
+
+        /// True if there is anything to show in the popup (includes SWD background events)
+        bool hasAnyEvents() const {
+            return criticalCount > 0 || warningCount > 0 || infoCount > 0 || swdCount > 0;
         }
     };
 
@@ -56,6 +74,11 @@ private:
     int barIndexAtPosition(const QPoint& pos) const;
     QRect barRect(int index, int maxCount) const;
     int calculateSmartMaxScale() const;
+
+    /// Compute bar width and spacing dynamically so bars are always wider than gaps.
+    /// All drawing and hit-testing functions must use this to stay consistent.
+    struct BarMetrics { int barWidth; int spacing; int columnWidth; };
+    BarMetrics computeBarMetrics() const;
 
     std::vector<ErrorLogEntry> m_allEvents;
     std::vector<DayData> m_dayData;

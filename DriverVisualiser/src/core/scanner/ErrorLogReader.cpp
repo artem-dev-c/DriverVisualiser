@@ -328,8 +328,21 @@ std::vector<ErrorLogEntry> ErrorLogReader::filterForDriver(
 void ErrorLogReader::populateErrorLogs(std::vector<DriverInfo>& drivers, int days)
 {
     std::vector<ErrorLogEntry> allEvents = querySystemLog(days);
-    for (auto& driver : drivers)
-        driver.errorLog = filterForDriver(allEvents, driver.instanceId);
+
+    for (auto& driver : drivers) {
+        auto matched = filterForDriver(allEvents, driver.instanceId);
+
+        // Replace each event's deviceInstanceId with the driver's authoritative
+        // full instance ID from SetupAPI. The XML may contain a partial ID
+        // (e.g. "USB\VID_1234&PID_5678" instead of "USB\VID_1234&PID_5678\ABC123")
+        // which causes false chain grouping in the UI. Using the full ID ensures
+        // each device is uniquely identified regardless of what the XML contained.
+        for (auto& entry : matched) {
+            entry.deviceInstanceId = driver.instanceId;
+        }
+
+        driver.errorLog = std::move(matched);
+    }
 }
 
 // ============================================================================
