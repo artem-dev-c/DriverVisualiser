@@ -31,17 +31,14 @@ DayEventsPopup::DayEventsPopup(const QDate& date,
             return a.timestamp < b.timestamp;
         });
 
-    // Split hardware events from SWD background events
+    // Split hardware events from SWD background events using category field
     for (const auto& entry : sorted) {
-        bool isInfo = (entry.level == L"Information" || entry.level == L"Info");
-        bool isSwd  = false;
-        if (isInfo && entry.deviceInstanceId.has_value()) {
-            std::wstring id = entry.deviceInstanceId.value();
-            std::transform(id.begin(), id.end(), id.begin(), ::towlower);
-            isSwd = (id.find(L"swd\\") == 0);
+        if (entry.category == ErrorLogEntry::Category::SwdBackground) {
+            m_swdEvents.push_back(entry);
+        } else {
+            // Includes BOTH DeviceMapped AND SystemWide events
+            m_events.push_back(entry);
         }
-        if (isSwd) m_swdEvents.push_back(entry);
-        else        m_events.push_back(entry);
     }
 
     // Build chains on chronological order (gap calculation requires it)
@@ -448,9 +445,36 @@ QWidget* DayEventsPopup::createEventCard(int eventIndex)
     topRow->addStretch();
     cardLayout->addLayout(topRow);
 
-    // Driver name
-    if (!entry.driverName.empty()) {
-        QLabel* nameLabel = new QLabel(QString::fromStdWString(entry.driverName));
+    // System-wide badge (for events without device mapping)
+    if (entry.category == ErrorLogEntry::Category::SystemWide) {
+        QHBoxLayout* badgeRow = new QHBoxLayout();
+        badgeRow->setSpacing(6);
+        badgeRow->setContentsMargins(0, 0, 0, 0);
+        
+        // Info icon
+        QLabel* iconLabel = new QLabel();
+        iconLabel->setPixmap(IconProvider::icon(IconProvider::InfoCircle, 
+                                                AppTheme::colors().textMuted, 14)
+                             .pixmap(14, 14));
+        iconLabel->setStyleSheet("background: transparent;");
+        badgeRow->addWidget(iconLabel);
+        
+        // Badge text
+        QLabel* badgeLabel = new QLabel("System-wide event");
+        QFont f = badgeLabel->font(); 
+        f.setPointSize(9); 
+        f.setItalic(true);
+        badgeLabel->setFont(f);
+        badgeLabel->setStyleSheet(QString("color: %1; background: transparent;")
+            .arg(AppTheme::colors().textMuted));
+        badgeRow->addWidget(badgeLabel);
+        badgeRow->addStretch();
+        
+        cardLayout->addLayout(badgeRow);
+    }
+    // Driver name (only for DeviceMapped events)
+    else if (entry.driverName.has_value() && !entry.driverName.value().empty()) {
+        QLabel* nameLabel = new QLabel(QString::fromStdWString(entry.driverName.value()));
         QFont f = nameLabel->font(); f.setPointSize(10); f.setWeight(QFont::DemiBold);
         nameLabel->setFont(f);
         nameLabel->setStyleSheet(QString("color: %1; background: transparent;")
@@ -544,8 +568,8 @@ QWidget* DayEventsPopup::createSwdRow(const ErrorLogEntry& entry) const
     QString text = formatTime(entry);
     if (entry.eventId != 0)
         text += QString("  ·  Event %1").arg(entry.eventId);
-    if (!entry.driverName.empty())
-        text += "  ·  " + QString::fromStdWString(entry.driverName);
+    if (entry.driverName.has_value() && !entry.driverName.value().empty())
+        text += "  ·  " + QString::fromStdWString(entry.driverName.value());
 
     QLabel* label = new QLabel(text);
     QFont f = label->font(); f.setPointSize(9);

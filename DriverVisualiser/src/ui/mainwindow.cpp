@@ -137,6 +137,10 @@ std::vector<DriverInfo> MainWindow::performScan(int logDays)
     DriverScanner scanner;
     auto drivers = scanner.fetchDrivers();
 
+    // Query ALL events for timeline (includes DeviceMapped, SystemWide, and SWD)
+    m_allEvents = ErrorLogReader::querySystemLog(logDays);
+
+    // Populate driver.errorLog with DeviceMapped events only
     ErrorLogReader::populateErrorLogs(drivers, logDays);
 
     for (auto& driver : drivers) {
@@ -339,19 +343,10 @@ void MainWindow::populateDriverList()
     // Event Timeline — header row (on bgBase) + chart card below
     // =========================================================================
 
-    // Aggregate all error logs from all drivers and populate driver names
-    std::vector<ErrorLogEntry> allErrorLogs;
-    for (const auto& driver : m_allDrivers) {
-        for (auto entry : driver.errorLog) {
-            entry.driverName = driver.name;
-            allErrorLogs.push_back(entry);
-        }
-    }
-
     // --- Chart widget ---
     m_timeline = new EventTimelineWidget();
     m_timeline->setDayRange(m_selectedLogDays);
-    m_timeline->setEvents(allErrorLogs);
+    m_timeline->setEvents(m_allEvents);  // Pass ALL events (includes SystemWide)
 
     // --- Header row (sits on bgBase, above the card) ---
     QWidget* timelineHeader = new QWidget();

@@ -66,6 +66,7 @@ private:
 
     // --- Data ---
     std::vector<DriverInfo> m_allDrivers;
+    std::vector<ErrorLogEntry> m_allEvents;  ///< All events for timeline (includes SystemWide)
     SystemInfo              m_systemInfo;
     int                     m_selectedLogDays  = 30;  ///< Currently selected log window (may differ from last scan)
     int                     m_lastScanLogDays  = 30;  ///< Log days actually used in the most recent scan

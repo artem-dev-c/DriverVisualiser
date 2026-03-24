@@ -9,6 +9,7 @@
 #include <QScreen>
 #include <algorithm>
 #include <cmath>
+#include <windows.h>
 
 // ============================================================================
 // Construction
@@ -54,7 +55,9 @@ void EventTimelineWidget::setupUi()
 // ============================================================================
 
 void EventTimelineWidget::setEvents(const std::vector<ErrorLogEntry>& events)
-{
+{   
+    OutputDebugStringA(QString("Timeline received %1 events\n").arg(events.size()).toStdString().c_str());
+    // DEBUG: Log event count to verify we're getting the expected number of events from the main thread
     m_allEvents = events;
     aggregateEventsByDay();
     update();
@@ -132,21 +135,10 @@ void EventTimelineWidget::aggregateEventsByDay()
                 } else if (entry.level == L"Warning") {
                     day.warningCount++;
                 } else {
-                    bool isInfo = (entry.level == L"Information" || entry.level == L"Info");
-                    if (isInfo && entry.deviceInstanceId.has_value()) {
-                        std::wstring deviceId = entry.deviceInstanceId.value();
-                        std::transform(deviceId.begin(), deviceId.end(), deviceId.begin(), ::towlower);
-                        bool isSoftware = (deviceId.find(L"swd\\") == 0);
-
-                        if (isSoftware) {
-                            // SWD\ info event — count separately, rendered dimmed on graph
-                            day.swdCount++;
-                        } else {
-                            // Hardware info event
-                            day.infoCount++;
-                        }
-                    } else if (isInfo) {
-                        // No device ID — treat as hardware info
+                    // Information-level events: separate SWD from hardware
+                    if (entry.category == ErrorLogEntry::Category::SwdBackground) {
+                        day.swdCount++;
+                    } else {
                         day.infoCount++;
                     }
                 }
@@ -154,6 +146,16 @@ void EventTimelineWidget::aggregateEventsByDay()
             }
         }
     }
+    // DEBUG: Log aggregated counts to verify correctness of aggregation logic
+    int totalCritical = 0, totalWarning = 0, totalInfo = 0, totalSwd = 0;
+    for (const auto& day : m_dayData) {
+        totalCritical += day.criticalCount;
+        totalWarning += day.warningCount;
+        totalInfo += day.infoCount;
+        totalSwd += day.swdCount;
+    }
+    OutputDebugStringA(QString("Timeline aggregated: Critical=%1, Warning=%2, Info=%3, SWD=%4\n")
+        .arg(totalCritical).arg(totalWarning).arg(totalInfo).arg(totalSwd).toStdString().c_str());
 }
 
 // ============================================================================
