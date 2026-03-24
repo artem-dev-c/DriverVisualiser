@@ -233,9 +233,15 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     allEntries.erase(
         std::unique(allEntries.begin(), allEntries.end(),
                     [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
+                        // Consider duplicate ONLY if:
+                        // - Same timestamp, eventId, provider
+                        // - AND same deviceInstanceId (or both empty)
+                        // This removes System+Configuration duplicates
+                        // but KEEPS child device events with different IDs
                         return a.timestamp == b.timestamp &&
                                a.eventId == b.eventId &&
-                               a.provider == b.provider;
+                               a.provider == b.provider &&
+                               a.deviceInstanceId == b.deviceInstanceId;
                     }),
         allEntries.end()
     );

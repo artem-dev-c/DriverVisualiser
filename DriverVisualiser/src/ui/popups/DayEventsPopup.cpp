@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <chrono>
 #include <unordered_map>
+#include <set>
+#include <tuple>
 
 // ============================================================================
 // Construction
@@ -24,8 +26,21 @@ DayEventsPopup::DayEventsPopup(const QDate& date,
 {
     setAttribute(Qt::WA_DeleteOnClose);
 
+    // Deduplicate child device events for UI display
+    // (backend keeps all events for driver cards, but UI shows only one per timestamp+event+provider)
+    std::vector<ErrorLogEntry> deduplicated;
+    std::set<std::tuple<std::chrono::system_clock::time_point, int, std::wstring>> seen;
+    
+    for (const auto& entry : events) {
+        auto key = std::make_tuple(entry.timestamp, entry.eventId, entry.provider);
+        if (seen.find(key) == seen.end()) {
+            deduplicated.push_back(entry);
+            seen.insert(key);
+        }
+    }
+
     // Sort chronologically for correct chain gap calculation
-    std::vector<ErrorLogEntry> sorted = events;
+    std::vector<ErrorLogEntry> sorted = deduplicated;
     std::sort(sorted.begin(), sorted.end(),
         [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
             return a.timestamp < b.timestamp;

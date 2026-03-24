@@ -9,7 +9,8 @@
 #include <QScreen>
 #include <algorithm>
 #include <cmath>
-#include <windows.h>
+#include <set>
+#include <tuple>
 
 // ============================================================================
 // Construction
@@ -55,10 +56,21 @@ void EventTimelineWidget::setupUi()
 // ============================================================================
 
 void EventTimelineWidget::setEvents(const std::vector<ErrorLogEntry>& events)
-{   
-    OutputDebugStringA(QString("Timeline received %1 events\n").arg(events.size()).toStdString().c_str());
-    // DEBUG: Log event count to verify we're getting the expected number of events from the main thread
-    m_allEvents = events;
+{
+    // Deduplicate child device events for UI display
+    // (backend keeps all events for driver cards, but UI shows only one)
+    std::vector<ErrorLogEntry> deduplicated;
+    std::set<std::tuple<std::chrono::system_clock::time_point, int, std::wstring>> seen;
+    
+    for (const auto& entry : events) {
+        auto key = std::make_tuple(entry.timestamp, entry.eventId, entry.provider);
+        if (seen.find(key) == seen.end()) {
+            deduplicated.push_back(entry);
+            seen.insert(key);
+        }
+    }
+    
+    m_allEvents = deduplicated;
     aggregateEventsByDay();
     update();
 }
@@ -146,16 +158,6 @@ void EventTimelineWidget::aggregateEventsByDay()
             }
         }
     }
-    // DEBUG: Log aggregated counts to verify correctness of aggregation logic
-    int totalCritical = 0, totalWarning = 0, totalInfo = 0, totalSwd = 0;
-    for (const auto& day : m_dayData) {
-        totalCritical += day.criticalCount;
-        totalWarning += day.warningCount;
-        totalInfo += day.infoCount;
-        totalSwd += day.swdCount;
-    }
-    OutputDebugStringA(QString("Timeline aggregated: Critical=%1, Warning=%2, Info=%3, SWD=%4\n")
-        .arg(totalCritical).arg(totalWarning).arg(totalInfo).arg(totalSwd).toStdString().c_str());
 }
 
 // ============================================================================
