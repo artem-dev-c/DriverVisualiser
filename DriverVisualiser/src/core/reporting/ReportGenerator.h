@@ -36,12 +36,14 @@ public:
      * @brief Generate a plain text system health report
      * @param drivers All scanned drivers with health scores
      * @param systemInfo System information (OS, build, architecture)
+     * @param allEvents All error log entries (includes SystemWide events)
      * @param scanWindowDays Number of days scanned for error logs (default: 7)
      * @return Formatted text report ready to save or display
      */
     QString generateTextReport(
         const std::vector<DriverInfo>& drivers,
         const SystemInfo& systemInfo,
+        const std::vector<ErrorLogEntry>& allEvents,
         int scanWindowDays = 7
     ) const;
 
@@ -49,12 +51,14 @@ public:
      * @brief Generate an interactive HTML system health report
      * @param drivers All scanned drivers with health scores
      * @param systemInfo System information (OS, build, architecture)
+     * @param allEvents All error log entries (includes SystemWide events)
      * @param scanWindowDays Number of days scanned for error logs (default: 7)
      * @return Formatted HTML report ready to save
      */
     QString generateHtmlReport(
         const std::vector<DriverInfo>& drivers,
         const SystemInfo& systemInfo,
+        const std::vector<ErrorLogEntry>& allEvents,
         int scanWindowDays = 7
     ) const;
 
@@ -62,6 +66,7 @@ public:
      * @brief Generate report using a custom formatter
      * @param drivers All scanned drivers
      * @param systemInfo System information
+     * @param allEvents All error log entries (includes SystemWide events)
      * @param scanWindowDays Scan window in days
      * @param formatter Custom formatter implementation
      * @return Formatted report string
@@ -69,6 +74,7 @@ public:
     QString generateReport(
         const std::vector<DriverInfo>& drivers,
         const SystemInfo& systemInfo,
+        const std::vector<ErrorLogEntry>& allEvents,
         int scanWindowDays,
         const IReportFormatter& formatter
     ) const;

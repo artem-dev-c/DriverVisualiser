@@ -4,6 +4,7 @@
 #include <string>
 #include "DriverInfo.h"
 #include "HealthFlag.h"
+#include "ErrorLogEntry.h"
 
 // ============================================================================
 // System-level health flag IDs (distinct from per-driver HealthFlag IDs)
@@ -70,7 +71,12 @@ class SystemHealthSummary
 {
 public:
     /// Compute full system health result from all scanned drivers
-    static SystemHealthResult compute(const std::vector<DriverInfo>& drivers);
+    /// @param drivers All scanned driver information
+    /// @param allEvents Complete event log (includes SystemWide events)
+    /// @param scanDays Event log window in days (30, 90, 180)
+    static SystemHealthResult compute(const std::vector<DriverInfo>& drivers,
+                                     const std::vector<ErrorLogEntry>& allEvents,
+                                     int scanDays);
 
 private:
     /// Compute weighted average score from non-virtual drivers
@@ -79,11 +85,14 @@ private:
     /// Apply system-level penalty flags and return adjusted score
     static int applySystemFlags(int baseScore,
                                 const std::vector<DriverInfo>& drivers,
+                                const std::vector<ErrorLogEntry>& allEvents,
+                                int scanDays,
                                 SystemHealthResult& result);
 
-    /// Extract actionable issues from all drivers
+    /// Extract actionable issues from drivers and system flags
     static std::vector<DashboardIssue> extractIssues(
-        const std::vector<DriverInfo>& drivers);
+        const std::vector<DriverInfo>& drivers,
+        const SystemHealthResult& result);
 
     /// Returns true if this flag ID should be shown in the dashboard issue list
     static bool isActionableFlag(const std::wstring& flagId);

@@ -118,4 +118,7 @@ private:
     QPushButton* m_log180Button = nullptr;
 
     int m_selectedLogDays = 30;  ///< Currently selected log window (default: 30 days)
+    
+    // Cached error log data for health calculation
+    std::vector<ErrorLogEntry> m_allEvents;  ///< All events (includes SystemWide)
 };

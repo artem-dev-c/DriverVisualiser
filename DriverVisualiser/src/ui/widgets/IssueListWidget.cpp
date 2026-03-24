@@ -149,6 +149,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
 
     // === Category badge ===
     if (!issue.categoryName.empty()) {
+        // Normal driver category badge (blue accent)
         QString catText = QString::fromStdWString(
             ClassNameMapper::getDisplayName(issue.categoryName)
         );
@@ -181,6 +182,27 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
             ).arg(AppTheme::colors().accentText, AppTheme::colors().accentBg, AppTheme::colors().accentBgBorder
             ));
         }
+        layout->addWidget(badge);
+    } else {
+        // SystemWide flag - show orange "System" badge
+        QLabel* badge = new QLabel("System");
+
+        QFont badgeFont = badge->font();
+        badgeFont.setPointSize(10);
+        badge->setFont(badgeFont);
+
+        badge->setStyleSheet(QString(
+            "QLabel {"
+            "   color: %1;"
+            "   background-color: %2;"
+            "   border: 1px solid %3;"
+            "   border-radius: 6px;"
+            "   padding: 1px 6px;"
+            "}"
+        ).arg(AppTheme::colors().textPrimary,  // White text
+              AppTheme::colors().warning,       // Orange background
+              AppTheme::colors().warning));     // Orange border
+        
         layout->addWidget(badge);
     }
 

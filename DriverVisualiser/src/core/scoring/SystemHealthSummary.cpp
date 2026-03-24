@@ -1,6 +1,7 @@
 #include "SystemHealthSummary.h"
 #include <algorithm>
 #include <numeric>
+#include <windows.h>
 
 // ============================================================================
 // Constants
@@ -46,7 +47,23 @@ namespace {
         L"OUTDATED_DRIVER_VERY_OLD",     // 5+ years
         // Critical device metadata flags (escalated to Warning severity)
         L"NO_VERSION_INFO_CRITICAL",
-        L"NO_DRIVER_DATE_CRITICAL"
+        L"NO_DRIVER_DATE_CRITICAL",
+        // SystemWide error rate flags
+        L"SYSTEMWIDE_ERROR_RATE_SEVERE",
+        L"SYSTEMWIDE_ERROR_RATE_HIGH",
+        L"SYSTEMWIDE_ERROR_RATE_MODERATE",
+        L"SYSTEMWIDE_ERROR_RATE_LOW",
+        // SystemWide warning rate flags
+        L"SYSTEMWIDE_WARNING_RATE_SEVERE",
+        L"SYSTEMWIDE_WARNING_RATE_HIGH",
+        L"SYSTEMWIDE_WARNING_RATE_MODERATE",
+        // Critical hardware failure types (separate flags)
+        L"GPU_CRASHES_DETECTED",
+        L"UMDF_FRAMEWORK_FAILURES",
+        L"DISK_CONTROLLER_ERRORS",
+        L"STORAGE_CONTROLLER_ERRORS",
+        L"NETWORK_ADAPTER_FAILURES",
+        L"VM_NETWORK_ERRORS"
     };
 }
 
@@ -54,7 +71,9 @@ namespace {
 // Public API
 // ============================================================================
 
-SystemHealthResult SystemHealthSummary::compute(const std::vector<DriverInfo>& drivers)
+SystemHealthResult SystemHealthSummary::compute(const std::vector<DriverInfo>& drivers,
+                                               const std::vector<ErrorLogEntry>& allEvents,
+                                               int scanDays)
 {
     SystemHealthResult result;
 
@@ -83,12 +102,12 @@ SystemHealthResult SystemHealthSummary::compute(const std::vector<DriverInfo>& d
     int baseScore = computeWeightedScore(drivers);
 
     // === Step 2: Apply system-level penalty flags ===
-    int finalScore = applySystemFlags(baseScore, drivers, result);
+    int finalScore = applySystemFlags(baseScore, drivers, allEvents, scanDays, result);
 
     result.score = std::clamp(finalScore, 0, 100);
 
     // === Step 3: Extract actionable issues for display ===
-    result.issues = extractIssues(drivers);
+    result.issues = extractIssues(drivers, result);
 
     return result;
 }
@@ -125,6 +144,8 @@ int SystemHealthSummary::computeWeightedScore(const std::vector<DriverInfo>& dri
 
 int SystemHealthSummary::applySystemFlags(int baseScore,
                                           const std::vector<DriverInfo>& drivers,
+                                          const std::vector<ErrorLogEntry>& allEvents,
+                                          int scanDays,
                                           SystemHealthResult& result)
 {
     int score = baseScore;
@@ -208,6 +229,269 @@ int SystemHealthSummary::applySystemFlags(int baseScore,
         score += PENALTY_POOR_METADATA;
     }
 
+    // ========================================================================
+    // Flag 5: SystemWide Event Analysis (Enhanced)
+    // ========================================================================
+    
+    // Count SystemWide events by severity
+    int criticalSystemWide = 0;
+    int warningSystemWide = 0;
+    
+    // Track critical hardware failure types with occurrence counts
+    int gpuCrashCount = 0;
+    int umdfCrashCount = 0;
+    int diskErrorCount = 0;
+    int storageErrorCount = 0;
+    int networkFailureCount = 0;
+    int vmErrorCount = 0;
+    
+    for (const auto& entry : allEvents) {
+        if (entry.category != ErrorLogEntry::Category::SystemWide) {
+            continue;
+        }
+        
+        // Convert provider to lowercase for case-insensitive matching
+        std::wstring providerLower = entry.provider;
+        std::transform(providerLower.begin(), providerLower.end(), 
+                      providerLower.begin(), ::towlower);
+        
+        // Count by severity level
+        if (entry.level == L"Critical" || entry.level == L"Error") {
+            criticalSystemWide++;
+            
+            // Detect and count critical hardware failure types
+            
+            // GPU crashes (NVIDIA, AMD)
+            if ((providerLower == L"nvlddmkm" || 
+                 providerLower == L"amdkmdag" || 
+                 providerLower == L"atikmdag") && 
+                entry.eventId == 153) {
+                gpuCrashCount++;
+            }
+            
+            // UMDF framework crashes (USB device failures)
+            else if (providerLower.find(L"umdf") != std::wstring::npos &&
+                (entry.eventId == 10116 || entry.eventId == 10120 || entry.eventId == 10121)) {
+                umdfCrashCount++;
+            }
+            
+            // Disk controller errors
+            else if (providerLower == L"disk" && 
+                (entry.eventId == 11 || entry.eventId == 153)) {
+                diskErrorCount++;
+            }
+            
+            // Storage controller errors (SATA, NVMe)
+            else if ((providerLower == L"storahci" || 
+                 providerLower == L"stornvme" || 
+                 providerLower == L"iastorac") &&
+                (entry.eventId == 129 || entry.eventId == 153)) {
+                storageErrorCount++;
+            }
+            
+            // Network adapter failures
+            else if ((providerLower.find(L"netwtw") != std::wstring::npos || // Intel WiFi
+                 providerLower == L"e1i65x64" ||                        // Intel Ethernet
+                 providerLower == L"rt640x64" ||                        // Realtek Ethernet
+                 providerLower == L"rtwlane" ||                         // Realtek WiFi
+                 providerLower == L"rtux64w10" ||                       // Realtek USB WiFi
+                 providerLower == L"bcmwl63a") &&                       // Broadcom WiFi
+                (entry.eventId == 5002 || entry.eventId == 5005 || 
+                 entry.eventId == 5007 || entry.eventId == 5010)) {
+                networkFailureCount++;
+            }
+            
+            // VirtualBox errors
+            else if ((providerLower == L"vboxnetlwf" || providerLower == L"vboxusbmon") &&
+                entry.eventId == 12) {
+                vmErrorCount++;
+            }
+        }
+        else if (entry.level == L"Warning") {
+            warningSystemWide++;
+        }
+    }
+    
+    // Calculate daily event rates (avoid division by zero)
+    float errorRate = (scanDays > 0) ? (float)criticalSystemWide / scanDays : 0.0f;
+    float warningRate = (scanDays > 0) ? (float)warningSystemWide / scanDays : 0.0f;
+    
+    // Debug output
+    OutputDebugStringW((std::wstring(L"[SystemHealthSummary] SystemWide event analysis:\n") +
+                        L"  Total events in allEvents: " + std::to_wstring(allEvents.size()) + L"\n" +
+                        L"  Critical/Error SystemWide: " + std::to_wstring(criticalSystemWide) + L"\n" +
+                        L"  Warning SystemWide: " + std::to_wstring(warningSystemWide) + L"\n" +
+                        L"  Scan days: " + std::to_wstring(scanDays) + L"\n" +
+                        L"  Error rate: " + std::to_wstring(errorRate) + L"/day\n" +
+                        L"  GPU crashes: " + std::to_wstring(gpuCrashCount) + L"\n" +
+                        L"  UMDF crashes: " + std::to_wstring(umdfCrashCount) + L"\n" +
+                        L"  Disk errors: " + std::to_wstring(diskErrorCount) + L"\n" +
+                        L"  Storage errors: " + std::to_wstring(storageErrorCount) + L"\n" +
+                        L"  Network failures: " + std::to_wstring(networkFailureCount) + L"\n" +
+                        L"  VM errors: " + std::to_wstring(vmErrorCount) + L"\n").c_str());
+    
+    // --- Flag 5a: SystemWide Error Rate (4 tiers) ---
+    int errorRatePenalty = 0;
+    std::wstring errorRateSeverity;
+    
+    if (errorRate >= 1.0f) {
+        errorRatePenalty = -12;
+        errorRateSeverity = L"SEVERE";
+    } else if (errorRate >= 0.5f) {
+        errorRatePenalty = -8;
+        errorRateSeverity = L"HIGH";
+    } else if (errorRate >= 0.3f) {
+        errorRatePenalty = -5;
+        errorRateSeverity = L"MODERATE";
+    } else if (errorRate >= 0.1f) {
+        errorRatePenalty = -3;
+        errorRateSeverity = L"LOW";
+    }
+    
+    if (errorRatePenalty < 0) {
+        SystemHealthFlag flag;
+        flag.id = L"SYSTEMWIDE_ERROR_RATE_" + errorRateSeverity;
+        
+        // Description varies by severity
+        if (errorRateSeverity == L"SEVERE") {
+            flag.description = L"Hardware stability critical: " + 
+                               std::to_wstring(criticalSystemWide) + 
+                               L" errors in " + std::to_wstring(scanDays) + L" days";
+        } else if (errorRateSeverity == L"HIGH") {
+            flag.description = L"Hardware stability issues: " + 
+                               std::to_wstring(criticalSystemWide) + 
+                               L" errors in " + std::to_wstring(scanDays) + L" days";
+        } else if (errorRateSeverity == L"MODERATE") {
+            flag.description = L"Moderate error rate: " + 
+                               std::to_wstring(criticalSystemWide) + 
+                               L" errors in " + std::to_wstring(scanDays) + L" days";
+        } else {
+            flag.description = L"Minor stability issues: " + 
+                               std::to_wstring(criticalSystemWide) + 
+                               L" errors in " + std::to_wstring(scanDays) + L" days";
+        }
+        
+        flag.severity = HealthFlagSeverity::Warning;
+        flag.penalty = errorRatePenalty;
+
+        result.systemFlags.push_back(flag);
+        score += errorRatePenalty;
+    }
+    
+    // --- Flag 5b: Critical Hardware Failures (separate flags for each type) ---
+    
+    // GPU crashes
+    if (gpuCrashCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"GPU_CRASHES_DETECTED";
+        flag.description = L"GPU driver crashes detected (" + 
+                           std::to_wstring(gpuCrashCount) + 
+                           (gpuCrashCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Critical;
+        flag.penalty = -2;
+
+        result.systemFlags.push_back(flag);
+        score += -2;
+    }
+    
+    // UMDF framework failures
+    if (umdfCrashCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"UMDF_FRAMEWORK_FAILURES";
+        flag.description = L"USB device framework failures (" + 
+                           std::to_wstring(umdfCrashCount) + 
+                           (umdfCrashCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Critical;
+        flag.penalty = -3;
+
+        result.systemFlags.push_back(flag);
+        score += -3;
+    }
+    
+    // Disk controller errors
+    if (diskErrorCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"DISK_CONTROLLER_ERRORS";
+        flag.description = L"Disk controller errors detected (" + 
+                           std::to_wstring(diskErrorCount) + 
+                           (diskErrorCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Critical;
+        flag.penalty = -2;
+
+        result.systemFlags.push_back(flag);
+        score += -2;
+    }
+    
+    // Storage controller errors
+    if (storageErrorCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"STORAGE_CONTROLLER_ERRORS";
+        flag.description = L"Storage controller timeouts (" + 
+                           std::to_wstring(storageErrorCount) + 
+                           (storageErrorCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Critical;
+        flag.penalty = -2;
+
+        result.systemFlags.push_back(flag);
+        score += -2;
+    }
+    
+    // Network adapter failures
+    if (networkFailureCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"NETWORK_ADAPTER_FAILURES";
+        flag.description = L"Network adapter failures (" + 
+                           std::to_wstring(networkFailureCount) + 
+                           (networkFailureCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Warning;
+        flag.penalty = -1;
+
+        result.systemFlags.push_back(flag);
+        score += -1;
+    }
+    
+    // VM network errors
+    if (vmErrorCount > 0) {
+        SystemHealthFlag flag;
+        flag.id = L"VM_NETWORK_ERRORS";
+        flag.description = L"Virtual machine network errors (" + 
+                           std::to_wstring(vmErrorCount) + 
+                           (vmErrorCount == 1 ? L" occurrence)" : L" occurrences)");
+        flag.severity = HealthFlagSeverity::Warning;
+        flag.penalty = -1;
+
+        result.systemFlags.push_back(flag);
+        score += -1;
+    }
+    
+    // --- Flag 5c: SystemWide Warning Rate (3 tiers) ---
+    int warningRatePenalty = 0;
+    std::wstring warningRateSeverity;
+    
+    if (warningRate >= 2.0f) {
+        warningRatePenalty = -6;
+        warningRateSeverity = L"SEVERE";
+    } else if (warningRate >= 1.0f) {
+        warningRatePenalty = -4;
+        warningRateSeverity = L"HIGH";
+    } else if (warningRate >= 0.5f) {
+        warningRatePenalty = -2;
+        warningRateSeverity = L"MODERATE";
+    }
+    
+    if (warningRatePenalty < 0) {
+        SystemHealthFlag flag;
+        flag.id = L"SYSTEMWIDE_WARNING_RATE_" + warningRateSeverity;
+        flag.description = L"Elevated warning rate: " + 
+                           std::to_wstring(warningSystemWide) + 
+                           L" warnings in " + std::to_wstring(scanDays) + L" days";
+        flag.severity = HealthFlagSeverity::Caution;
+        flag.penalty = warningRatePenalty;
+
+        result.systemFlags.push_back(flag);
+        score += warningRatePenalty;
+    }
+
     return score;
 }
 
@@ -216,10 +500,12 @@ int SystemHealthSummary::applySystemFlags(int baseScore,
 // ============================================================================
 
 std::vector<DashboardIssue> SystemHealthSummary::extractIssues(
-    const std::vector<DriverInfo>& drivers)
+    const std::vector<DriverInfo>& drivers,
+    const SystemHealthResult& result)
 {
     std::vector<DashboardIssue> issues;
 
+    // Extract issues from per-driver health flags
     for (const auto& driver : drivers) {
         for (const auto& flag : driver.healthFlags) {
             if (!isActionableFlag(flag.id)) {
@@ -244,6 +530,24 @@ std::vector<DashboardIssue> SystemHealthSummary::extractIssues(
 
             issues.push_back(issue);
         }
+    }
+    
+    // Extract issues from SystemWide flags (NEW)
+    for (const auto& flag : result.systemFlags) {
+        if (!isActionableFlag(flag.id)) {
+            continue;
+        }
+
+        DashboardIssue issue;
+        issue.driverName       = L"System";           // Generic name for SystemWide
+        issue.driverInstanceId = L"";                 // No specific device
+        issue.categoryName     = L"";                 // Empty triggers orange "System" badge
+        issue.flagId           = flag.id;
+        issue.description      = flag.description;
+        issue.severity         = flag.severity;
+        issue.isUserDisabled   = false;
+
+        issues.push_back(issue);
     }
 
     // Sort: Critical first, then Warning, then user-disabled last

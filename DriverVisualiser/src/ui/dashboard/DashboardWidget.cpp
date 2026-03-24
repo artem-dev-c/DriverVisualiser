@@ -361,14 +361,27 @@ QWidget* DashboardWidget::buildControlColumn()
 }
 
 // ============================================================================
+// Error Log Management
+// ============================================================================
+
+void DashboardWidget::setErrorLogs(const std::vector<ErrorLogEntry>& entries)
+{
+    m_allEvents = entries;
+}
+
+// ============================================================================
 // Populate
 // ============================================================================
 
 void DashboardWidget::populate(const std::vector<DriverInfo>& drivers,
                                 const SystemInfo& sysInfo)
 {
-    // Compute system health from all drivers
-    SystemHealthResult result = SystemHealthSummary::compute(drivers);
+    // Compute system health from all drivers with SystemWide event data
+    SystemHealthResult result = SystemHealthSummary::compute(
+        drivers, 
+        m_allEvents,         // All events (includes SystemWide)
+        m_selectedLogDays    // Current scan window
+    );
 
     // Update score ring
     m_scoreRing->setScore(result.score);

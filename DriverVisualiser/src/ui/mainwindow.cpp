@@ -316,6 +316,8 @@ void MainWindow::populateDriverList()
     m_dashboard = new DashboardWidget();
     // Restore persisted log window selection BEFORE populate() so buttons show correctly
     m_dashboard->setSelectedLogDays(m_selectedLogDays);
+    // Pass error log events to dashboard for SystemHealthSummary calculation
+    m_dashboard->setErrorLogs(m_allEvents);
     m_dashboard->populate(m_allDrivers, m_systemInfo);
     // Fix height after populate so filtering can't cause the dashboard to expand
     m_dashboard->setFixedHeight(m_dashboard->sizeHint().height());
@@ -640,9 +642,9 @@ void MainWindow::onGenerateReportRequested(ReportFormat format)
     QString reportText;
     
     if (format == ReportFormat::Html) {
-        reportText = generator.generateHtmlReport(m_allDrivers, m_systemInfo, m_lastScanLogDays);
+        reportText = generator.generateHtmlReport(m_allDrivers, m_systemInfo, m_allEvents, m_lastScanLogDays);
     } else {
-        reportText = generator.generateTextReport(m_allDrivers, m_systemInfo, m_lastScanLogDays);
+        reportText = generator.generateTextReport(m_allDrivers, m_systemInfo, m_allEvents, m_lastScanLogDays);
     }
 
     // 4. Save to file
