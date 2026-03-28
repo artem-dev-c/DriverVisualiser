@@ -1,5 +1,7 @@
 #include "ErrorLogReader.h"
 #include <algorithm>
+#include <map>
+#include <set>
 
 // ============================================================================
 // Static Member Initialization
@@ -125,11 +127,6 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
 {
     std::vector<ErrorLogEntry> allEntries;
 
-    OutputDebugStringW(L"\n[ErrorLogReader] ========================================\n");
-    OutputDebugStringW((L"[ErrorLogReader] Starting MULTI-LOG query (last " +
-                        std::to_wstring(days) + L" days)\n").c_str());
-    OutputDebugStringW(L"[ErrorLogReader] ========================================\n\n");
-
     // Compute time cutoff (once for all logs)
     SYSTEMTIME stNow;
     GetSystemTime(&stNow);
@@ -144,8 +141,6 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     // QUERY 1: System Log - Core Providers (Errors/Warnings + Lifecycle)
     // ========================================================================
     
-    OutputDebugStringW(L"[ErrorLogReader] === QUERY 1: System Log (Core Providers) ===\n");
-    
     std::wstring coreQuery =
         L"*[System["
         L"  (Provider[@Name='Microsoft-Windows-Kernel-PnP']"
@@ -155,7 +150,6 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
         L"    (Level=1 or Level=2 or Level=3)"  // All errors/warnings
         L"    or (Level=4 and ("  // Information - lifecycle events only
         L"      EventID=400"   // Device installed/updated
-        L"      or EventID=410"  // Device configured (stored, hidden)
         L"      or EventID=420"  // Restart required
         L"      or EventID=430"  // Device removal started
         L"      or EventID=431"  // Device removal complete
@@ -170,14 +164,12 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     // QUERY 2: Configuration Log - Kernel-PnP Lifecycle Events
     // ========================================================================
     
-    OutputDebugStringW(L"[ErrorLogReader] === QUERY 2: Configuration Log (Lifecycle) ===\n");
-    
     std::wstring configQuery =
         L"*[System["
         L"  Provider[@Name='Microsoft-Windows-Kernel-PnP']"
         L"  and Level=4"  // Information only
         L"  and ("
-        L"    EventID=400 or EventID=410 or EventID=420"
+        L"    EventID=400 or EventID=420"
         L"    or EventID=430 or EventID=431"
         L"  )"
         L"]]";
@@ -190,16 +182,10 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     // QUERY 3: Hardware Providers (Errors/Warnings Only)
     // ========================================================================
     
-    OutputDebugStringW(L"[ErrorLogReader] === QUERY 3: Hardware Providers ===\n");
-    
     if (!HARDWARE_PROVIDERS.empty()) {
         // Split providers into batches of 10 to avoid XPath query length limits
         const size_t BATCH_SIZE = 10;
         size_t totalProviders = HARDWARE_PROVIDERS.size();
-        
-        OutputDebugStringW((L"[ErrorLogReader] Querying " + 
-                            std::to_wstring(totalProviders) + 
-                            L" hardware providers for errors/warnings\n").c_str());
         
         for (size_t i = 0; i < totalProviders; i += BATCH_SIZE) {
             size_t end = std::min(i + BATCH_SIZE, totalProviders);
@@ -218,16 +204,14 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     // Post-Processing: Remove Duplicates, Classify, Filter
     // ========================================================================
     
-    OutputDebugStringW(L"\n[ErrorLogReader] === Post-Processing ===\n");
-    
-    auto beforeDedup = allEntries.size();
-    
     // Remove duplicates (same event from System + Configuration logs)
     std::sort(allEntries.begin(), allEntries.end(),
               [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
                   if (a.timestamp != b.timestamp) return a.timestamp < b.timestamp;
                   if (a.eventId != b.eventId) return a.eventId < b.eventId;
-                  return a.provider < b.provider;
+                  if (a.provider != b.provider) return a.provider < b.provider;
+                  // CRITICAL: Must sort by deviceInstanceId too for std::unique to work!
+                  return a.deviceInstanceId < b.deviceInstanceId;
               });
     
     allEntries.erase(
@@ -246,61 +230,23 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
         allEntries.end()
     );
     
-    auto afterDedup = allEntries.size();
-    if (beforeDedup != afterDedup) {
-        OutputDebugStringW((L"[ErrorLogReader] Removed " + 
-                            std::to_wstring(beforeDedup - afterDedup) + 
-                            L" duplicate events\n").c_str());
-    }
-    
     // Classify events (DeviceMapped/SystemWide/SwdBackground)
-    int deviceMappedCount = 0;
-    int systemWideCount = 0;
-    int swdCount = 0;
-    
     for (auto& entry : allEntries) {
         classifyEvent(entry);
-        
-        // Count by category
-        if (entry.category == ErrorLogEntry::Category::DeviceMapped) deviceMappedCount++;
-        else if (entry.category == ErrorLogEntry::Category::SystemWide) systemWideCount++;
-        else if (entry.category == ErrorLogEntry::Category::SwdBackground) swdCount++;
     }
     
-    OutputDebugStringW((L"[ErrorLogReader] Classification: DeviceMapped=" + 
-                        std::to_wstring(deviceMappedCount) + 
-                        L", SystemWide=" + std::to_wstring(systemWideCount) +
-                        L", SWD=" + std::to_wstring(swdCount) + L"\n").c_str());
-    
     // Remove excluded events (spam filter)
-    auto beforeFilter = allEntries.size();
     allEntries.erase(
         std::remove_if(allEntries.begin(), allEntries.end(),
                       [](const ErrorLogEntry& e) { return isExcludedEvent(e); }),
         allEntries.end()
     );
-    
-    auto afterFilter = allEntries.size();
-    if (beforeFilter != afterFilter) {
-        OutputDebugStringW((L"[ErrorLogReader] Filtered out " + 
-                            std::to_wstring(beforeFilter - afterFilter) + 
-                            L" spam events\n").c_str());
-    }
 
     // Sort by timestamp (newest first)
     std::sort(allEntries.begin(), allEntries.end(),
               [](const ErrorLogEntry& a, const ErrorLogEntry& b) {
                   return a.timestamp > b.timestamp;
               });
-
-    OutputDebugStringW(L"\n[ErrorLogReader] ========================================\n");
-    OutputDebugStringW((L"[ErrorLogReader] TOTAL EVENTS COLLECTED: " + 
-                        std::to_wstring(allEntries.size()) + L"\n").c_str());
-    OutputDebugStringW((L"[ErrorLogReader]   From System (core): " + 
-                        std::to_wstring(coreEvents.size()) + L"\n").c_str());
-    OutputDebugStringW((L"[ErrorLogReader]   From Configuration: " + 
-                        std::to_wstring(configEvents.size()) + L"\n").c_str());
-    OutputDebugStringW(L"[ErrorLogReader] ========================================\n\n");
 
     return allEntries;
 }
@@ -317,24 +263,18 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySingleLog(
 {
     std::vector<ErrorLogEntry> entries;
     
-    OutputDebugStringW((L"[ErrorLogReader] Querying log: " + logName + L"\n").c_str());
-    
     EVT_HANDLE hResults = EvtQuery(nullptr, logName.c_str(), queryXPath.c_str(),
                                    EvtQueryChannelPath | EvtQueryForwardDirection);
     if (!hResults) {
-        DWORD error = GetLastError();
-        OutputDebugStringW((L"[ErrorLogReader] Query FAILED! Error: " + 
-                            std::to_wstring(error) + L"\n").c_str());
-        return entries;  // Log might not exist on this system
+        // Log might not exist on this system - silently skip
+        return entries;
     }
 
     const DWORD BATCH_SIZE = 10;
     EVT_HANDLE events[BATCH_SIZE];
     DWORD returned = 0;
-    int totalFetched = 0;
 
     while (EvtNext(hResults, BATCH_SIZE, events, INFINITE, 0, &returned)) {
-        totalFetched += returned;
         for (DWORD i = 0; i < returned; i++) {
             ErrorLogEntry entry = parseEvent(events[i]);
 
@@ -355,10 +295,6 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySingleLog(
             EvtClose(events[i]);
         }
     }
-
-    OutputDebugStringW((L"[ErrorLogReader] " + logName + L": Fetched " +
-                        std::to_wstring(totalFetched) + L" total, " +
-                        std::to_wstring(entries.size()) + L" within time window\n").c_str());
 
     EvtClose(hResults);
     return entries;
@@ -576,21 +512,11 @@ void ErrorLogReader::populateErrorLogs(std::vector<DriverInfo>& drivers, int day
     // Query all events once
     auto allEvents = querySystemLog(days);
 
-    OutputDebugStringW(L"\n[ErrorLogReader] === Populating Driver Error Logs ===\n");
-
     // Match events to each driver
     for (auto& driver : drivers) {
         driver.errorLog = filterForDriver(allEvents, driver.instanceId);
         driver.errorLogWindowDays = days;
-
-        if (!driver.errorLog.empty()) {
-            OutputDebugStringW((L"[ErrorLogReader] " + driver.name + 
-                                L": " + std::to_wstring(driver.errorLog.size()) + 
-                                L" events\n").c_str());
-        }
     }
-
-    OutputDebugStringW(L"[ErrorLogReader] =====================================\n\n");
 }
 
 // ============================================================================
@@ -769,7 +695,6 @@ std::wstring ErrorLogReader::buildEventMessage(int eventId, const std::wstring& 
             // Lifecycle events
             case 400: return L"Device installation completed";
             case 403: return L"Driver install started";
-            case 410: return L"Device configured successfully";
             case 411: {
                 auto st = extractEventDataField(xml, L"Status");
                 return st.has_value()
