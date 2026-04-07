@@ -84,3 +84,19 @@ CMakeLists.txt.user*
 **/.vscode/
 .vscode/
 **/settings.json
+
+# build
+build/
+*/build/
+**/build/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+build.ninja
+
+# Qt / clangd
+.qtc_clangd/
+*_autogen/
+compile_commands.json
