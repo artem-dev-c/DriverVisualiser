@@ -1,0 +1,16 @@
+Copyright (c) 2025 Artemijs Kaufmans. All rights reserved.
+
+This source code is made publicly available for portfolio and code review
+purposes only. You may read and evaluate the code, but you may not:
+
+  - Copy, modify, or distribute any part of this codebase
+  - Use this code or any derivative of it in any product or service,
+    commercial or otherwise, without explicit written permission from
+    the author
+  - Redistribute compiled binaries derived from this source
+
+This project uses Qt6, licensed under the GNU Lesser General Public
+License v3 (LGPL-3.0). Qt source code and license terms are available
+at https://www.qt.io/licensing/
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

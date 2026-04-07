@@ -1,146 +1,358 @@
 # Driver Visualiser
 
-**A Windows diagnostic tool for instant driver health monitoring and troubleshooting.**
+**A Windows diagnostic tool for instant driver health monitoring, event analysis, and system stability assessment.**
 
-Driver Visualiser consolidates Windows Device Manager and Event Viewer into a unified interface with real-time health scoring, priority-based issue detection, and one-click troubleshooting reports.
+Driver Visualiser brings together what Device Manager and Event Viewer do separately - and extends both significantly. Weighted health scoring across every installed driver, a 180-day event history timeline, system-wide hardware failure detection, and exportable diagnostic reports. All in one place, with a clean interface that works in both dark and light themes.
 
 ![Driver Visualiser Dashboard](screenshots/dashboard.png)
 
 ---
 
-## The Problem
+## What It Does
 
-When Windows hardware fails, troubleshooting requires:
-- Opening Device Manager and expanding categories to hunt for yellow warning icons
-- Separately launching Event Viewer and filtering thousands of system logs
-- Manually cross-referencing cryptic error codes (e.g., `0x0a`) between tools
-- 10-15 minutes of detective work for what should be instant
+Getting from "something is wrong" to "here is what is wrong, why, and how bad" normally means jumping between multiple tools - manually cross-referencing error codes and timestamps with no priority ordering or health context.
 
-**Example:** A failing I2C touchpad driver appears as a small warning icon buried under "Human Interface Devices" with only an error code. Finding it requires scrolling through dozens of healthy drivers and manually checking Event Viewer for context.
-
-**Driver Visualiser does this in 3 seconds** — critical issues surface immediately with full diagnostic context.
+Driver Visualiser compresses that workflow into a single scan. Critical issues surface immediately with full context: health scores, active problem codes translated to plain English, event log frequency analysis, driver age, signature status, and a visual timeline of every hardware event over the past 30, 90, or 180 days. Generate a diagnostic report with one click and share it with a manufacturer or support team.
 
 ---
 
 ## Key Features
 
 ### Instant Issue Detection
-- Scans 200+ system drivers on startup (5-10 seconds)
-- **Priority-based sorting:** Critical failures appear at top with red indicators
-- **Actionable filtering:** Only shows real problems (blocked drivers, failed devices, restart-required warnings)
-- Categories with issues expand automatically — healthy drivers stay collapsed
+- Scans all installed drivers on startup (typically under 10 seconds)
+- **Priority-based sorting:** critical failures appear at top with red indicators
+- **Importance-weighted display:** GPU and storage failures ranked above HID peripherals
+- Categories with issues expand automatically - healthy drivers stay collapsed
+- **Dashboard issue list:** actionable problems only, sorted critical-first with human-readable descriptions
 
-### Intelligent Health Scoring (0-100%)
-Every driver receives a health score based on:
-- **Current status:** OK / Warning / Error / Disabled
-- **Problem codes:** Windows CM_PROB_* error codes (e.g., `0x0a` = device failed to start)
-- **Event log patterns:** Error frequency analysis over 7/30/90-day windows
-- **Metadata quality:** Missing version info, outdated drivers (3+ years old), unsigned drivers
+### Intelligent Health Scoring (0-100)
 
-**Penalty tiers:**
-- Critical (-40): Driver blocked, device failed to start
-- Warning (-10 to -15): Unsigned, needs restart, 3+ years old
-- Caution (-2 to -5): Missing version/date information
-- Event log penalty: Based on error-per-day rate over scan window *(implementation in progress)*
-- Info (0): User-disabled, virtual devices, generic Microsoft drivers
+Every driver receives a health score computed from five independent signal tiers:
 
-### Importance Classification
-Drivers are weighted by system role (via Hardware ID prefixes):
-- **Critical (4× weight):** GPU, storage controllers, chipset (ACPI, PCI, SCSI)
-- **Important (2× weight):** Network, audio, USB, Bluetooth
-- **Optional (1× weight):** HID peripherals, printers
-- **Virtual (0× weight):** Software devices, excluded from scoring
+**Tier 1 - Critical flags** (`-40` penalty each):
+- `DRIVER_BLOCKED` - Windows blocked this driver from loading
+- `PROBLEM_CODE_CRITICAL` - active Windows PnP problem code (translated to plain English)
 
-### System Health Score
-- **Weighted average** across all non-virtual drivers
-- **System-level penalties** for multiple critical failures, unsigned drivers, poor metadata
-- **User-disabled drivers excluded** from problem counts (intentional action, not a fault)
+**Tier 2 - Warning flags**:
+- `UNSIGNED_DRIVER` - driver is not digitally signed (`-15`)
+- `NEEDS_RESTART` - pending restart required for driver to function correctly (`-15`)
+- `GHOST_DEVICE` - device not physically present (`-10`)
+- `GHOST_DEVICE_STALE` - device absent for 6+ months, safe to remove (`-3`)
+- `DEVICE_DISCONNECTED` - device is disconnected (`-10`)
+- Graduated driver age penalties (uses driver date, falls back to install date):
+  - 2+ years: `OUTDATED_DRIVER_AGING` (`-3`)
+  - 3+ years: `OUTDATED_DRIVER` (`-10`)
+  - 5+ years: `OUTDATED_DRIVER_VERY_OLD` (`-12`)
+  - 7+ years: `OUTDATED_DRIVER_ANCIENT` (`-15`, flagged as security risk)
 
-### One-Click Troubleshooting Reports
+**Tier 3 - Caution flags** (missing metadata, escalated for critical devices):
+- `NO_VERSION_INFO` / `NO_VERSION_INFO_CRITICAL` (`-5` / `-8`)
+- `NO_DRIVER_DATE` / `NO_DRIVER_DATE_CRITICAL` (`-3` / `-5`)
+- `UNKNOWN_MANUFACTURER` / `UNKNOWN_MANUFACTURER_IMPORTANT` (`-2` / `-3`)
 
-**Text Reports (.txt):**
-- Executive summary with overall status
-- Critical issues with full diagnostic details
-- Driver inventory grouped by category
-- Event log summary (past 7/30/90 days)
-- Statistics: health distribution, installation age, importance breakdown
-- Actionable recommendations
+**Tier 4 - Info flags** (no penalty, informational):
+- `USER_DISABLED` - device intentionally disabled by user (shown in red but not penalised)
+- `VIRTUAL_DEVICE` - software/virtual device, excluded from system scoring
+- `GENERIC_DRIVER` - Microsoft inbox driver, may lack manufacturer optimisations
+- `SYSTEM_CRITICAL` - cannot be disabled (non-removable system device)
 
-**Per-Driver Reports:**
-- Complete technical metadata (Hardware ID, Instance ID, parent device)
-- Status information (problem code, raw status flags)
-- Driver details (version, date, INF path, manufacturer)
+**Tier 5 - Event log frequency** (evaluated before warning flags):
 
-**HTML Reports (.html):**
-- Interactive dashboard with the same structure
-- Color-coded severity indicators
-- Formatted for sharing via email or support tickets
+Critical/Error event rates per driver over the scan window:
 
-### Event Log Integration
-- Queries Windows System log for driver-related events
-- Providers: `Microsoft-Windows-Kernel-PnP`, `Microsoft-Windows-DriverFrameworks-UserMode`
-- Configurable lookback window: 7, 30, or 90 days
-- **Manual XML parsing** (no XPath) — more reliable across Windows versions
-- **Time filtering in C++** (not SQL/query syntax) — avoids API inconsistencies
+| Rate | Flag | Penalty |
+|------|------|---------|
+| >= 5.0/day | `CRITICAL_ERROR_RATE_SEVERE` | `-40` |
+| >= 2.0/day | `CRITICAL_ERROR_RATE_HIGH` | `-15` |
+| >= 0.5/day | `CRITICAL_ERROR_RATE_MODERATE` | `-10` |
+| < 0.5/day | `CRITICAL_ERROR_RATE_LOW` | `-5` |
 
-### Search & Filtering
-- **Search:** Filter by manufacturer, device name, or class
-- **Manufacturer filter:** Multi-select checkbox popup
-- **Status filter:** Show only critical, warnings, or healthy drivers
-- **300ms debounce** — smooth typing without lag
-
----
-
-## Technical Architecture
+Warning event rates follow a parallel scale (`-10` to `-2`).
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   UI Layer (Qt6 Widgets)                │
-│  • MainWindow - Application orchestration               │
-│  • DashboardWidget - Health visualization & controls    │
-│  • SearchFilterBar - Search + manufacturer filtering    │
-│  • CategorySectionWidget - Collapsible device groups    │
-│  • DriverCardWidget - Individual driver display         │
-│  • DriverInfoPopup - Technical details popup            │
-│  • ErrorLogPopupWidget - Event log timeline             │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
-│              Business Logic Layer                       │
-│  • CategoryGrouper - Group drivers by device class      │
-│  • CategoryProcessor - Sort by health + category stats  │
-│  • SystemHealthSummary - Weighted scoring + issue list  │
-│  • HealthScoreEvaluator - 0-100 scoring with penalties  │
-│  • DriverImportanceEvaluator - Hardware ID classification│
-│  • ClassNameMapper - Raw class → friendly display names │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
-│                  Core / Data Layer                      │
-│  • DriverScanner - SetupAPI device enumeration          │
-│  • ErrorLogReader - Event Log XML parsing               │
-│  • SystemInfoCollector - OS version from registry       │
-│  • TextReportFormatter - Structured .txt generation     │
-│  • HtmlReportFormatter - Interactive .html generation   │
-└─────────────────────────────────────────────────────────┘
+Final Score = max(0, 100 + sum of all applicable penalties)
+```
+
+Known placeholder dates (Microsoft 2006-06-21, Intel 2009-04-21, and others) are filtered before age evaluation, with install date used as fallback.
+
+### Importance Classification
+
+Hardware ID prefixes determine the weight each driver carries in the system score:
+
+| Tier | Prefixes | Weight | Examples |
+|------|----------|--------|---------|
+| **Critical** | `ACPI\`, `PCI\`, `PCIROOT\`, `IDE\`, `SCSI\` | 4x | GPU, chipset, storage controllers |
+| **Important** | `USB\`, `HDAUDIO\`, `DISPLAY\`, `STORAGE\`, `BTH\`, `SD\`, `PCMCIA\` | 2x | Network, audio, USB, Bluetooth |
+| **Optional** | `HID\`, `PRINTENUM\` | 1x | HID peripherals, printers |
+| **Virtual** | `SWD\`, `SW\`, `ROOT\`, `UMB\` | 0x | Software devices, excluded entirely |
+
+### System Health Score
+
+The system-level score is computed in two steps:
+
+**Step 1 - Weighted average** across all non-virtual drivers (Critical=4x, Important=2x, Optional=1x). User-disabled devices are counted as healthy since disabling is an intentional action.
+
+**Step 2 - System-level penalty flags** applied on top:
+
+| Flag | Condition | Penalty |
+|------|-----------|---------|
+| `CRITICAL_DRIVERS_PRESENT` | Any drivers with health < 70 | `-8` per driver, max `-25` |
+| `MULTIPLE_WARNINGS` | 3+ drivers with health 70-89 | `-5` |
+| `UNSIGNED_DRIVERS_PRESENT` | Any unsigned drivers | `-5` |
+| `POOR_DRIVER_METADATA` | >50% of important/critical devices missing date | `-3` |
+| `SYSTEMWIDE_ERROR_RATE_*` | SystemWide event error rate (4 tiers) | `-3` to `-12` |
+| `SYSTEMWIDE_WARNING_RATE_*` | SystemWide event warning rate (3 tiers) | `-2` to `-6` |
+| `GPU_CRASHES_DETECTED` | NVIDIA/AMD Event 153 in SystemWide log | `-2` |
+| `UMDF_FRAMEWORK_FAILURES` | UMDF Events 10116/10120/10121 | `-3` |
+| `DISK_CONTROLLER_ERRORS` | disk driver Events 11/153 | `-2` |
+| `STORAGE_CONTROLLER_ERRORS` | storahci/stornvme/iaStorAC Events 129/153 | `-2` |
+| `NETWORK_ADAPTER_FAILURES` | Intel/Realtek/Broadcom Events 5002-5010 | `-1` |
+| `VM_NETWORK_ERRORS` | VirtualBox network Event 12 | `-1` |
+
+### Event Log Integration
+
+Driver Visualiser queries three separate Windows Event Log channels per scan:
+
+**Query 1 - System log (core providers):**
+- `Microsoft-Windows-Kernel-PnP` - all severity levels + whitelisted lifecycle events (400, 420, 430, 431)
+- `Microsoft-Windows-DriverFrameworks-UserMode` - UMDF driver failures
+- `Microsoft-Windows-UserPnP` - user-mode PnP events
+
+**Query 2 - Configuration log:**
+- `Microsoft-Windows-Kernel-PnP/Configuration` - device install, restart required, removal events
+
+**Query 3 - Hardware provider log (batched in groups of 10 to stay within XPath query length limits):**
+
+Static provider whitelist covering ~90% of consumer hardware:
+
+| Category | Providers |
+|----------|-----------|
+| GPU | `nvlddmkm` (NVIDIA), `amdkmdag`/`atikmdag` (AMD), `igfx`/`igd10iumd64`/`igdkmd64` (Intel) |
+| Storage | `disk`, `storahci`, `stornvme`, `iaStorAC` |
+| Network | `Netwtw10/14/16` (Intel WiFi), `e1i65x64` (Intel Ethernet), `rt640x64`/`rtwlane`/`rtux64w10`/`RTKVHD64` (Realtek), `bcmwl63a` (Broadcom) |
+| USB/System | `USBXHCI`, `MEIx64`, AMD GPIO/I2C, VirtualBox network |
+
+**Event classification** - every event is tagged into one of three categories:
+- `DeviceMapped` - contains a `DeviceInstanceId`, shown in driver card + timeline
+- `SystemWide` - no device ID, shown in timeline and factored into system-level penalty scoring
+- `SwdBackground` - `SWD\` software device events, low-priority collapsed section in UI
+
+**Spam filter** - 7 confirmed-noise events are excluded regardless of provider:
+
+| Event ID | Provider | Reason |
+|----------|----------|--------|
+| 6 | FilterManager | Filter driver loaded at boot - boot noise |
+| 6062 | Netwtw14 | LSO (Large Send Offload) telemetry |
+| 7021 | Netwtw14 | WiFi connection telemetry |
+| 11, 16 | Kernel-General | Registry TxR / hive access - not driver health |
+| 44 | WindowsUpdateClient | Update download started |
+| 153 | Kernel-Boot | VBS status at boot |
+
+Queries use XPath via the Windows Event Log API (`EvtQuery`). All event record parsing is done manually via `std::wstring` field extraction - no XML DOM, no third-party parsers, handles both single and double quote attribute formats across Windows versions.
+
+### Event Timeline and Day Drill-Down
+
+The **Event Timeline Widget** renders a stacked bar chart of all driver events across the selected scan window (30, 90, or 180 days):
+
+- Bars are colour-coded: red (Critical/Error), orange (Warning), blue (Info/lifecycle)
+- SWD background events tracked separately - counted in tooltip but excluded from bar height
+- **Smart Y-axis scaling:** rounds up to clean tick values; if one day is an outlier, the scale is capped at 3x the second-highest value to keep other bars readable
+- **Dynamic bar width:** adapts to window size and day count - spacing reduces from 4px to 1px across 30/90/180 day ranges so bars are always wider than gaps
+- Hover shows a per-severity breakdown tooltip; clicking any bar opens the Day Events Popup
+
+The **Day Events Popup** shows all events for a selected day in chronological order:
+
+- Deduplicates child device events by `(timestamp, eventId, provider)` tuple
+- Consecutive events from the same device within a 30-second window are visually connected with a **thread dot-line** in accent colour - makes burst failures immediately obvious
+- Chain keys require a full three-part `BUS\DEVICE\INSTANCE` path; two-part IDs shared across USB composite children are excluded to prevent false grouping
+- `SwdBackground` events are in a collapsible "Software background activity" section at the bottom
+- Popup is screen-aware and repositions automatically if it would overflow screen bounds
+
+### One-Click Diagnostic Reports
+
+**Text Reports (.txt):**
+- Executive summary with overall system health
+- Critical and warning issues with full diagnostic detail
+- Per-driver inventory grouped by device category
+- Event log summary for the selected scan window
+- Statistics: health distribution, driver age, importance breakdown
+- Actionable recommendations
+
+**HTML Reports (.html):**
+- Same structure, formatted for sharing
+- Colour-coded severity indicators
+- Suitable for attaching to support tickets or manufacturer reports
+
+A notification toast appears on completion.
+
+### Search and Filtering
+- **Text search:** filter by device name, manufacturer, or device class
+- **Manufacturer filter:** multi-select checkbox popup
+- **Status filter:** show only critical, warning, or healthy drivers
+- **300ms debounce** - responsive typing without scan lag
+
+### Theming
+- **Dark and light themes**, auto-detected from Windows system colour scheme
+- All surfaces, borders, text roles, and semantic colours defined as named tokens in `AppTheme::Colors`
+- Re-reads OS scheme on `QStyleHints::colorSchemeChanged`
+- Scrollbar stylesheet provided centrally via `AppTheme::scrollbarStyleSheet()`
+
+---
+## Screenshots
+
+### Dashboard - Dark Theme
+![Dashboard dark theme](screenshots/dashboard.png)
+*System health score, priority-sorted issue list, and driver inventory with importance indicators*
+
+### Dashboard - Light Theme
+![Dashboard light theme](screenshots/dashboard-light.png)
+
+
+### Driver Card and Health Flags
+![Driver card](screenshots/driver-card.png)
+*Per-driver health score, active flags with plain-English descriptions, and event log indicator*
+
+### Driver Info Popup
+![Driver info popup](screenshots/driver-info.png)
+*Full technical metadata - Hardware ID, INF path, version, install date, parent device*
+
+### Per Driver Report
+![Report](screenshots/text-report.png)
+*One-click copy as txt, formatted for sharing with ai or manufacturer support*
+## Technical Architecture
+
+The application is split into three layers with strict separation - the UI never calls Windows APIs directly, and the data layer has no Qt dependency.
+
+```
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║                      UI  LAYER  (Qt6 Widgets)                    ║
+  ║                                                                  ║
+  ║  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐   ║
+  ║  │   MainWindow    │  │ DashboardWidget  │  │ ScoreRingWidget│   ║
+  ║  │  orchestration  │  │ score·issues·    │  │  0-100 ring    │   ║
+  ║  │  + scan trigger │  │ controls·theme   │  │  visualisation │   ║
+  ║  └────────┬────────┘  └───────┬──────────┘  └───────┬────────┘   ║
+  ║           │                   │                     │            ║
+  ║  ┌────────▼───────────────────▼─────────────────────▼────────┐   ║
+  ║  │                     Driver List                           │   ║
+  ║  │  CategorySectionWidget  ──>  DriverCardWidget             |   ║
+  ║  │  (collapsible groups)        (health bar · flags · log)   │   ║
+  ║  └───────────────────────────────────────────────────────────┘   ║
+  ║                                                                  ║
+  ║  ┌──────────────────────────────────────────────────────────┐    ║
+  ║  │                  Event Timeline                          │    ║
+  ║  │  EventTimelineWidget  ──>  DayEventsPopup                │    ║
+  ║  │  (stacked bar chart)        (threaded event cards)       │    ║
+  ║  └──────────────────────────────────────────────────────────┘    ║
+  ║                                                                  ║
+  ║  Popups: DriverInfoPopup · ErrorLogPopupWidget · FlagPopupWidget ║
+  ║  Utils:  SearchFilterBar · IssueListWidget · ReportNotification  ║
+  ╚══════════════════════════╦═══════════════════════════════════════╝
+                             ║
+  ╔══════════════════════════╩═══════════════════════════════════════╗
+  ║                  BUSINESS LOGIC  LAYER                           ║
+  ║                                                                  ║
+  ║  Scoring                     Grouping & Display                  ║
+  ║  ├─ HealthScoreEvaluator     ├─ CategoryGrouper                  ║
+  ║  │  (5-tier, per driver)     ├─ CategoryProcessor                ║
+  ║  ├─ DriverImportanceEval.    └─ ClassNameMapper                  ║
+  ║  │  (HW ID → 4 tiers)                                            ║
+  ║  └─ SystemHealthSummary      Presentation                        ║
+  ║     (weighted avg + flags)   ├─ AppTheme  (dark/light tokens)    ║
+  ║                              ├─ IconProvider  (SVG cache)        ║
+  ║                              └─ CategoryIconMapper               ║
+  ╚══════════════════════════╦═══════════════════════════════════════╝
+                             ║
+  ╔══════════════════════════╩═══════════════════════════════════════╗
+  ║                    CORE / DATA  LAYER                            ║
+  ║                                                                  ║
+  ║  DriverScanner          SetupAPI enumeration of all devices      ║
+  ║  ErrorLogReader         3-channel Event Log pipeline             ║
+  ║  SystemInfoCollector    OS version from registry                 ║
+  ║  TextReportFormatter    Structured .txt report generation        ║
+  ║  HtmlReportFormatter    Interactive .html report generation      ║
+  ║  ReportGenerator        Orchestrates formatters + file output    ║
+  ╚══════════════════════════════════════════════════════════════════╝
 ```
 
 ### Technology Stack
-- **Language:** C++20 (modern STL, `std::optional`, `std::chrono::sys_days`, RAII patterns)
-- **GUI:** Qt6 Widgets (dark theme, custom styling)
+
+- **Language:** C++20 - `std::optional`, `std::chrono::sys_days`, `std::chrono::system_clock`, RAII throughout
+- **GUI:** Qt6 Widgets - custom-painted widgets, SVG icon rendering, DPI-aware pixmaps at 1x/1.5x/2x
 - **Windows APIs:**
-  - `SetupAPI` - Device and driver enumeration (`SetupDiGetClassDevsW`, `SetupDiEnumDeviceInfo`, `SetupDiGetDevicePropertyW`)
-  - `Configuration Manager API` - Device status and tree traversal (`CM_Get_DevNode_Status`, `CM_Get_Parent`)
-  - `Event Log API` - System event correlation (`EvtQuery`, manual XML parsing)
-  - `Registry API` - OS version detection (`RegOpenKeyExW`, `RegQueryValueExW`)
-- **Architecture:** 90+ modules with clear layer separation (UI → Business Logic → Core)
-- **No external dependencies:** Manual JSON parsing, no 3rd-party libraries beyond Qt6
+  - `SetupAPI` - device and driver enumeration (`SetupDiGetClassDevsW`, `SetupDiEnumDeviceInfo`, `SetupDiGetDevicePropertyW`)
+  - `Configuration Manager API` - device status and tree traversal (`CM_Get_DevNode_Status`, `CM_Get_Parent`, `DN_*` flag decoding)
+  - `Windows Event Log API` - XPath queries + manual XML parsing (`EvtQuery`, `EvtNext`, `EvtRender`, `EvtFormatMessage`)
+  - `Registry API` - OS version detection
+- **No external dependencies** beyond Qt6 - all parsing, formatting, and data structures in standard C++20
+
+### Code Structure
+
+```
+src/
+├── core/
+│   └── models/
+│   |   ├── DeviceCategory.h
+│   |   ├── DriverInfo.h
+│   |   ├── ErrorLogEntry.h
+│   |   ├── HealthFlag.h
+│   |   └── SystemInfo.h
+|   ├──reporting/
+│   |   ├── formatters/
+│   |   │   ├── HtmlReportFormatter.cpp/h
+│   |   │   ├── IReportFormatter.h
+│   |   │   └── TextReportFormatter.cpp/h
+│   |   └── ReportGenerator.cpp/h
+|   ├──scanner/
+│   |   ├── DriverScanner.cpp/h
+│   |   ├── ErrorLogReader.cpp/h
+│   |   └── SystemInfoCollector.cpp/h
+|   └── scoring/
+│       ├── DriverImportanceEvaluator.cpp/h
+│       ├── HealthScoreEvaluator.cpp/h
+│       └── SystemHealthSummary.cpp/h
+├── ui/
+│   ├── dashboard/
+│   │   └── DashboardWidget.cpp/h
+│   ├── popups/
+│   │   ├── DayEventsPopup.cpp/h
+│   │   ├── DriverInfoPopup.cpp/h
+│   │   ├── ErrorLogPopupWidget.cpp/h
+│   │   ├── FilterPopupWidget.cpp/h
+│   │   └── FlagPopupWidget.cpp/h
+│   ├── widgets/
+│   │   ├── CategorySectionWidget.cpp/h
+│   │   ├── DriverCardWidget.cpp/h
+│   │   ├── ErrorLogIndicatorWidget.cpp/h
+│   │   ├── EventTimelineWidget.cpp/h
+│   │   ├── FlagIndicatorWidget.cpp/h
+│   │   ├── IssueListWidget.cpp/h
+│   │   ├── ReportNotification.cpp/h
+│   │   ├── ScoreRingWidget.cpp/h
+│   │   └── SearchFilterBar.cpp/h
+│   └── mainwindow.cpp/h
+└── utils/
+    ├── formatters/
+    │   ├── DriverDateFormatter.cpp/h
+    │   ├── DriverImportanceFormatter.cpp/h
+    │   ├── DriverStatusFormatter.cpp/h
+    │   └── DriverVersionFormatter.cpp/h
+    ├── grouper/
+    │   ├── CategoryGrouper.cpp/h
+    │   └── CategoryProcessor.cpp/h
+    ├── mappers/
+    |   └── ClassNameMapper.cpp/h
+    ├── CategoryIconMapper.cpp/h
+    ├── IconProvider.cpp/h
+    ├── AppTheme.cpp/h
+```
 
 ---
 
 ## How It Works
 
 ### 1. Driver Enumeration (SetupAPI)
+
 ```cpp
 HDEVINFO hDevInfo = SetupDiGetClassDevsW(
     nullptr, nullptr, nullptr,
@@ -149,390 +361,209 @@ HDEVINFO hDevInfo = SetupDiGetClassDevsW(
 
 SP_DEVINFO_DATA devInfoData;
 for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
-    // Query device properties, status, version, dates, etc.
+    // Per driver: name, manufacturer, provider, Hardware ID,
+    // class GUID, version, driver date, install date,
+    // status/problem codes, parent device, INF path, driver files
 }
 ```
 
-Collects per-driver:
-- Name, manufacturer, provider (friendly name)
-- Device class GUID and name
-- Hardware ID (for importance classification)
-- Version, driver date, install date
-- Status code, problem code (`CM_PROB_*`)
-- Parent device instance ID and status
-- INF path, driver file list
+Collects per driver: name, manufacturer, provider, Hardware ID, device class GUID, version, driver date, install date, `CM_PROB_*` problem code, raw `DN_*` status flags, parent instance ID and status, INF path, driver file list, digital signature status.
 
-### 2. Health Scoring Algorithm
-```
-Base Score = 100
+### 2. Event Log Pipeline
 
-For each health flag detected:
-  - DRIVER_BLOCKED (-40)
-  - PROBLEM_CODE_CRITICAL (-40) — excludes user-disabled (0x16)
-  - UNSIGNED_DRIVER (-15)
-  - NEEDS_RESTART (-15)
-  - OUTDATED_DRIVER (-10) — 3+ years since driver date
-  - GHOST_DEVICE (-10)
-  - NO_VERSION_INFO (-5)
-  - NO_DRIVER_DATE (-3)
-  - UNKNOWN_MANUFACTURER (-2)
-
-Event log penalty (in progress):
-  - Based on error-per-day rate over scan window
-  - High error frequency triggers additional penalties
-
-Info flags (0 penalty):
-  - USER_DISABLED, VIRTUAL_DEVICE, GENERIC_DRIVER, SYSTEM_CRITICAL
-
-Final Score = max(0, Base Score + penalties)
-```
-
-**Driver date validation:** Filters out known placeholder dates:
-- Microsoft: 2006-06-21, 2006-06-01
-- Intel: 2009-04-21
-- Dates before 2001 or after 2100
-
-### 3. Importance Classification
 ```cpp
-if (hardwareId.starts_with(L"ACPI\\") ||
-    hardwareId.starts_with(L"PCI\\") ||
-    hardwareId.starts_with(L"SCSI\\"))
-    return DriverImportance::Critical;
+// Three separate XPath queries per scan:
+// Query 1: System log - core providers + whitelisted lifecycle events
+// Query 2: Kernel-PnP/Configuration - lifecycle events only
+// Query 3: Hardware providers - batched in groups of 10
 
-if (hardwareId.starts_with(L"USB\\") ||
-    hardwareId.starts_with(L"HDAUDIO\\") ||
-    hardwareId.starts_with(L"DISPLAY\\"))
-    return DriverImportance::Important;
-
-if (hardwareId.starts_with(L"SWD\\") ||
-    hardwareId.starts_with(L"ROOT\\"))
-    return DriverImportance::Virtual;
-
-return DriverImportance::Optional;
-```
-
-### 4. System Health Score
-```
-Weighted Average = (Σ driver_score × importance_weight) / Σ importance_weight
-
-Weights:
-  Critical  = 4×
-  Important = 2×
-  Optional  = 1×
-  Virtual   = 0× (excluded)
-
-System Penalties:
-  - 1+ critical drivers: -8 per driver (max -25)
-  - 3+ warnings: -5
-  - Any unsigned drivers: -5
-  - Poor metadata (>50% missing dates): -3
-
-Final Score = max(0, Weighted Average + penalties)
-```
-
-### 5. Event Log Correlation
-```cpp
-// Query System log with provider filter
-EvtQuery(nullptr, L"System",
+std::wstring coreQuery =
     L"*[System["
-    L"(Provider[@Name='Microsoft-Windows-Kernel-PnP']"
-    L" or Provider[@Name='Microsoft-Windows-DriverFrameworks-UserMode'])"
-    L" and (Level=1 or Level=2 or Level=3)"  // Critical, Error, Warning
-    L"]]",
-    EvtQueryForwardDirection
-);
+    L"  (Provider[@Name='Microsoft-Windows-Kernel-PnP'] or ...)"
+    L"  and ((Level=1 or Level=2 or Level=3)"
+    L"    or (Level=4 and (EventID=400 or EventID=420"
+    L"      or EventID=430 or EventID=431)))]]";
 
-// Manual XML parsing to extract:
-// - Event ID, timestamp, level
-// - Device Instance ID (for matching to drivers)
-// - Status codes, failure reasons
-
-// Time filtering in C++ (XPath unreliable):
-FILETIME ftCutoff = now - (days * 86400 * 10000000ULL);
-if (event.timestamp >= ftCutoff) {
-    matchedEvents.push_back(event);
-}
+auto events = querySingleLog(L"System", coreQuery, uliCutoff, days);
 ```
 
-### 6. Category Grouping & Sorting
+Each event is parsed from raw XML (manual field extraction - no DOM), classified into `DeviceMapped` / `SystemWide` / `SwdBackground`, filtered through the spam blacklist, and matched to drivers by `DeviceInstanceId` with parent-child fallback.
+
+### 3. Health Scoring
+
+```
+Per-Driver Score:
+  Base = 100
+  +-- Tier 1 (Critical):    DRIVER_BLOCKED, PROBLEM_CODE_CRITICAL        -40 each
+  +-- Tier 5 (Event rate):  evaluated first, before warning flags
+  |     CRITICAL_ERROR_RATE_SEVERE / HIGH / MODERATE / LOW               -40/-15/-10/-5
+  +-- Tier 2 (Warning):     UNSIGNED, NEEDS_RESTART, GHOST, AGE          -3 to -15
+  +-- Tier 3 (Caution):     missing metadata, escalated for Critical      -2 to -8
+  +-- Tier 4 (Info):        USER_DISABLED, VIRTUAL_DEVICE, etc.          0
+  Final = max(0, Base + penalties)
+
+System Score:
+  Base = weighted_avg(driver scores, Critical=4x, Important=2x, Optional=1x)
+  +-- CRITICAL_DRIVERS_PRESENT:  -8 per critical driver, max -25
+  +-- MULTIPLE_WARNINGS:         -5 if 3+ warning-tier drivers
+  +-- UNSIGNED_DRIVERS_PRESENT:  -5 if any unsigned
+  +-- POOR_DRIVER_METADATA:      -3 if >50% of important/critical lack date
+  +-- SystemWide event analysis: GPU, disk, storage, network, UMDF flags
+  Final = clamp(Base + penalties, 0, 100)
+```
+
+### 4. Event Timeline Rendering
+
 ```cpp
-// Group by device class (like Device Manager)
-map<wstring, DeviceCategory> categories = groupByDeviceClass(drivers);
+// Smart scale prevents single-spike distortion
+int calculateSmartMaxScale() const {
+    // Rounds to clean values: 5, 10, 20, 30, 50, 100...
+    // For outlier days: cap at 3x the second-highest count
+    int cappedMax = std::min(actualMax, secondMax * 3);
+}
 
-// Apply friendly names from JSON mapping
-category.displayName = ClassNameMapper::getDisplayName(category.className);
+// Dynamic bar width - bars always wider than gaps
+int spacing = std::max(1, BAR_SPACING - (totalBars > 90 ? 3 : totalBars > 45 ? 2 : 0));
+int barWidth = (chartWidth - (totalBars - 1) * spacing) / totalBars;
+```
 
-// Sort drivers within each category:
-// 1. Health score (worst first)
-// 2. Importance (Critical → Important → Optional)
-// 3. Name (alphabetical)
+### 5. Device Chain Detection
 
-// Sort categories by worst health:
-// 1. Lowest health score in category (ascending)
-// 2. Category name (alphabetical)
+```cpp
+// Events from the same device within 30 seconds form a visual thread
+static constexpr int GAP_SECONDS = 30;
+
+// Valid chain key requires full BUS\DEVICE\INSTANCE path (2+ backslashes)
+// Two-part IDs shared across USB composite children are excluded
+auto isValidChainKey = [](const std::wstring& id) -> bool {
+    size_t first = lower.find(L'\\');
+    return lower.find(L'\\', first + 1) != std::wstring::npos;
+};
 ```
 
 ---
 
-## Screenshots
+## Comparison
 
-### Main Dashboard
-![Dashboard](screenshots/dashboard.png)
-*90% system health, 1 critical issue instantly visible*
+Driver Visualiser is a diagnostic tool, not a driver updater. It does not download, install, or modify any drivers or system files.
 
-### Driver List with Categories
-![Driver cards](screenshots/driver-list.png)
-*Priority sorting - critical failures surface first, healthy drivers collapse*
-
-### Individual Driver Card
-![Driver card detail](screenshots/driver-card.png)
-*Full metadata: status, version, manufacturer, dates, health score, flags*
-
-### Text Report
-![Text report](screenshots/text-report.png)
-*Professional troubleshooting report ready for IT support*
-
----
-
-## Installation & Usage
-
-### Requirements
-- Windows 10 (Build 19041+) or Windows 11
-- Administrator privileges (see FAQ for details)
-
-### Download
-*(Pre-built releases coming with alpha launch - March 2026)*
-
-### Usage
-1. Run `DriverVisualiser.exe` as Administrator
-2. Wait 5-10 seconds for initial scan (200+ drivers)
-3. Critical issues appear at top automatically
-4. Click **"Generate Report"** → Select format (Text / HTML)
-5. Adjust event log window (7 / 30 / 90 days) → **"Scan Drivers"** to rescan
-
-### Search & Filtering
-- **Search bar:** Type manufacturer, device name, or class
-- **Filters:** Click ⚙ Filters → Select manufacturers, status, or importance
-- **Category collapse:** Click category header to expand/collapse
-
----
-
-## Project Status
-
-**Current Version:** Pre-Alpha (90% feature-complete)
-
-### ✅ Completed (Core Features)
-- [x] Driver enumeration via SetupAPI
-- [x] Event log parsing and correlation (7/30/90 day windows)
-- [x] Health scoring algorithm with 4-tier penalties
-- [x] Importance classification (Hardware ID-based)
-- [x] Weighted system health score
-- [x] Priority-based UI sorting
-- [x] Text report generation with detailed sections
-- [x] HTML report generation (interactive)
-- [x] Qt6 dark-theme UI with modern styling
-- [x] Search and manufacturer filtering
-- [x] Category grouping with friendly name mapping
-- [x] Error log popup with event timeline
-- [x] Driver info popup with technical details
-- [x] Background threading for manual scans
-
-### 🚧 In Progress (Pre-Alpha → Alpha)
-- [ ] Setup/update log integration
-- [ ] Graph plotting on dashboard (update history + error log correlation with dates)
-- [ ] Event log penalty integration (error-per-day rate)
-- [ ] Basic driver update suggestions
-- [ ] Bug fixes and stability improvements
-- [ ] UI theme refinements + white theme option
-
-### 🔮 Planned (Post-Alpha)
-- [ ] Expanded diagnostic capabilities
-- [ ] Additional features (to be determined based on user feedback)
-
-**Target Alpha Release:** March 2026
-
----
-
-## Design Principles
-
-- **Correctness over speed:** Accurate Windows PnP modeling, no heuristic guessing
-- **User experience matters:** Diagnostic tools can be powerful and beautiful
-- **Clean architecture:** Business logic isolated from UI and API layers
-- **Modern C++:** RAII everywhere, no raw pointers, STL containers
-- **No bloat:** Single-purpose tool, not an OS monitoring suite
-- **Graceful degradation:** App works even if Event Log API fails (just no event correlation)
-
----
-
-## Why I Built This
-
-As a systems programmer working on a gaming laptop, I frequently troubleshoot driver issues. Windows' built-in tools are powerful but fragmented — you need to be a power user to diagnose problems efficiently.
-
-**Example: My failing I2C touchpad driver**
-
-**Device Manager:**
-1. Open Device Manager
-2. Expand "Human Interface Devices" (36 drivers on my system)
-3. Scroll to find "I2C HID Device" (two exist, one OK, one failing)
-4. Right-click → Properties → See error code `0x0a`
-5. Google error code → "Device failed to start"
-6. Open Event Viewer separately
-7. Filter System log → Search for touchpad-related events
-8. Cross-reference timestamps with recent system changes
-
-**Time:** ~10-15 minutes
-
-**Driver Visualiser:**
-1. Open app
-2. See red "I2C HID Device - Device failed to start" at top of dashboard
-3. Click card → View health flags: `PROBLEM_CODE_CRITICAL`, `GENERIC_DRIVER`
-4. Click error log indicator → See 12 recent failures with timestamps
-5. Click "Generate Report" → Share with IT support or manufacturer
-
-**Time:** ~30 seconds
+| Feature | Driver Visualiser | Device Manager | Event Viewer | Driver Updaters |
+|---------|:-----------------:|:--------------:|:------------:|:---------------:|
+| All drivers scanned and ranked instantly | ✅ | ❌ Manual navigation | ❌ | ⚠️ Update focus only |
+| Health score per driver (0-100) | ✅ 5-tier scoring | ❌ Binary OK/Error | ❌ | ❌ |
+| Importance-weighted system score | ✅ 4 tiers + penalties | ❌ | ❌ | ❌ |
+| Event log integration | ✅ 3 channels, 30-180 days | ❌ | ✅ Manual filtering | ❌ |
+| System-wide hardware event analysis | ✅ GPU/disk/network/UMDF | ❌ | ✅ Manual | ❌ |
+| Visual event timeline | ✅ Stacked bar, 180 days | ❌ | ❌ | ❌ |
+| Per-day event drill-down with device chains | ✅ | ❌ | ❌ | ❌ |
+| Human-readable error translation | ✅ | ❌ Raw codes | ⚠️ Raw log text | ❌ |
+| Driver age analysis (graduated 2-7 years) | ✅ | ❌ | ❌ | ⚠️ Basic |
+| Export diagnostic reports (.txt / .html) | ✅ | ❌ | ❌ | ⚠️ Limited |
+| Read-only, no system modifications | ✅ | ✅ | ✅ | ❌ |
+| Dark and light theme | ✅ Auto-detected | ❌ | ❌ | ⚠️ Varies |
 
 ---
 
 ## FAQ
 
-**Q: Is this safe to run?**  
-A: Driver Visualiser is **read-only** — it never modifies drivers, system files, or registry keys. It only queries Windows APIs that Device Manager uses internally.
+**Q: Is this safe to run?**
+Driver Visualiser is entirely read-only. It never modifies drivers, registry keys, or system files.
 
-**Q: Why does it need Administrator privileges?**  
-A: Windows requires admin access for:
-- Event Log queries on the System channel (security-related events)
-- Detailed device status codes (`CM_Get_DevNode_Status`)
-- Complete driver metadata (some SetupAPI properties)
+**Q: Why does it need Administrator privileges?**
+Windows requires elevation for Event Log queries on the System channel, full device status codes via `CM_Get_DevNode_Status`, and certain `SetupDiGetDevicePropertyW` properties. Basic driver listing works without admin but full diagnostics require elevation.
 
-Basic driver listing works without admin, but full diagnostics require elevation.
+**Q: Will this work on Windows 7/8?**
+No. Driver Visualiser targets Windows 10 (build 19041+) due to Qt6 requirements and modern Event Log APIs.
 
-**Q: Will this work on Windows 7/8?**  
-A: Not currently. Driver Visualiser targets Windows 10 (19041+) due to Qt6 requirements and modern Event Log APIs.
+**Q: How accurate is the health scoring?**
+The scoring combines Windows PnP status codes, digital signature verification, driver age, and event log frequency analysis. Scores are diagnostic indicators - always verify critical findings.
 
-**Q: Can I uninstall or update drivers with this?**  
-A: Not currently, and not planned for v2.0. Driver Visualiser focuses on diagnostics and health monitoring. For driver management, use Windows Update or manufacturer tools.
+**Q: What is a "SystemWide" event?**
+Some hardware events (GPU crashes, disk controller errors) are logged without a `DeviceInstanceId` and cannot be automatically matched to a specific driver card. Driver Visualiser captures these as `SystemWide` events, displays them in the timeline, and factors them into the system-level score separately.
 
-**Q: Why does scanning take 5-10 seconds?**  
-A: Enumerating 200+ drivers with full metadata (status, version, dates, event logs) is I/O-intensive. Background threading is implemented for manual scans to keep the UI responsive.
-
-**Q: Why 90 days maximum for event logs?**  
-A: Currently an API performance consideration. Longer windows (180+ days) may be added based on testing and user feedback.
-
-**Q: How accurate is the driver health scoring?**  
-A: The health scoring combines multiple signals (Windows status codes, event logs, metadata quality) and has been validated against real-world driver failures. The 60% score for a failing I2C touchpad driver (problem code `0x0a`) correctly identified it as critical. However, scores are diagnostic indicators, not guarantees - always verify critical issues in Device Manager or with manufacturer support.
+**Q: Why does the scan window max out at 180 days?**
+180 days covers the vast majority of meaningful driver failure history and is the current upper limit based on Event Log API performance characteristics.
 
 ---
 
-## Comparison: Driver Visualiser vs. Built-in Tools
+## Requirements
 
-| Feature | Driver Visualiser | Device Manager | Event Viewer |
-|---------|-------------------|----------------|--------------|
-| **Scan all drivers instantly** | ✅ 200+ in 5-10s | ❌ Manual navigation | ❌ N/A |
-| **Show failure root cause** | ✅ Event correlation | ❌ Only error codes | ✅ Raw logs only |
-| **Priority-based sorting** | ✅ Critical first | ❌ Alphabetical | ❌ Chronological |
-| **Health scoring (0-100%)** | ✅ Per-driver + system | ❌ Binary OK/Error | ❌ N/A |
-| **Importance classification** | ✅ 4 tiers | ❌ | ❌ |
-| **Event log integration** | ✅ 7/30/90 days | ❌ | ✅ Manual filtering |
-| **Export reports** | ✅ Text + HTML | ❌ | ❌ |
-| **Search & filter** | ✅ Multi-criteria | ⚠️ Basic | ⚠️ Basic |
-| **Dark theme** | ✅ | ❌ | ❌ |
+- **OS:** Windows 10 (build 19041+) or Windows 11
+- **Privileges:** Administrator (required for full diagnostics)
+- **Runtime:** Visual C++ Redistributable 2022 (included in installer)
 
 ---
 
-## Technical Details
+## Why I Built This
 
-### C++20 Features Used
-- `std::optional<T>` - Nullable driver metadata
-- `std::chrono::sys_days` - Driver date representation
-- `std::chrono::system_clock::time_point` - Event timestamps
-- Smart pointers (implied via RAII)
-- Move semantics, range-based for loops
-- Structured bindings (`auto [key, value]`)
+Windows has all the information you need to diagnose driver issues - it's just
+scattered across tools that were never designed to work together. Getting a
+concrete answer with evidence normally means 10-15 minutes of jumping between
+Device Manager, Event Viewer, and Google.
 
-**Not using:** Concepts, ranges, coroutines, modules, `std::format`
+A few scenarios where Driver Visualiser cuts that down to seconds:
 
-### Code Organization
-```
-DriverVisualiser/
-├── core/
-│   ├── models/
-│   │   ├── DriverInfo.h
-│   │   ├── ErrorLogEntry.h
-│   │   ├── HealthFlag.h
-│   │   └── SystemInfo.h
-│   ├── DriverScanner.cpp/h
-│   ├── ErrorLogReader.cpp/h
-│   ├── HealthScoreEvaluator.cpp/h
-│   ├── DriverImportanceEvaluator.cpp/h
-│   ├── SystemHealthSummary.cpp/h
-│   └── SystemInfoCollector.cpp/h
-├── reporting/
-│   ├── formatters/
-│   │   ├── HtmlReportFormatter.cpp/h
-│   │   ├── IReportFormatter.h
-│   │   └── TextReportFormatter.cpp/h
-│   └── ReportGenerator.cpp/h
-├── scanner/
-│   ├── DriverScanner.cpp/h
-│   ├── ErrorLogReader.cpp/h
-│   └── SystemInfoCollector.cpp/h
-├── ui/
-│   ├── dashboard/
-│   │   └── DashboardWidget.cpp/h
-│   ├── popups/
-│   │   ├── DriverInfoPopup.cpp/h
-│   │   ├── ErrorLogPopupWidget.cpp/h
-│   │   └── FlagPopupWidget.cpp/h
-│   ├── widgets/
-│   │   ├── CategorySectionWidget.cpp/h
-│   │   ├── DriverCardWidget.cpp/h
-│   │   ├── ErrorLogIndicatorWidget.cpp/h
-│   │   ├── FlagIndicatorWidget.cpp/h
-│   │   ├── IssueListWidget.cpp/h
-│   │   └── ScoreRingWidget.cpp/h
-│   ├── MainWindow.cpp/h
-│   └── SearchFilterBar.cpp/h
-├── utils/
-│   ├── formatters/
-│   │   ├── DriverDateFormatter.cpp/h
-│   │   ├── DriverStatusFormatter.cpp/h
-│   │   └── DriverVersionFormatter.cpp/h
-│   ├── grouper/
-│   │   ├── CategoryGrouper.cpp/h
-│   │   └── CategoryProcessor.cpp/h
-│   └── mappers/
-│       └── ClassNameMapper.cpp/h
-├── resources/
-│   ├── device_class_mappings.json
-│   └── CMakeLists.txt
-└── .gitignore
-```
+- **Intermittent failures** - the timeline shows whether a GPU or storage
+  controller started crashing before or after a recent driver update
+- **Unstable system** - SystemWide event analysis surfaces UMDF and disk
+  controller failures that don't map to a single device in Device Manager
+- **Handing off a diagnosis** - the exported report gives a support team
+  everything they need without them reproducing the environment
+- **Second-hand machine** - 180-day event history and driver age analysis
+  tells you a lot about how a system has been treated
 
-### Error Handling
-- **SetupAPI failures:** Return "Unknown" for missing properties, skip drivers gracefully
-- **Event Log failures:** App continues without event correlation (diagnostic mode only)
-- **Developer logging:** `OutputDebugStringW()` for diagnostic traces (not shown to users)
+The I2C touchpad on my own laptop is what started it. Fifteen minutes to
+manually track down error code 0x0a across two tools. Driver Visualiser
+finds it in one scan.
 
 ---
+## Beta Status
 
+Driver Visualiser is functional and has been tested across a small number of
+real systems. The core pipeline - driver enumeration, event log parsing,
+health scoring, and report generation - works reliably. A few things worth
+knowing before you run it:
+
+**Penalty calibration** - the scoring thresholds are based on intuition and
+a small test dataset. Most values should be in the right ballpark, but some
+penalties may feel too harsh or too lenient on hardware configurations that
+weren't part of early testing. If something looks off, it probably is - feedback
+on specific flag values is genuinely useful at this stage.
+
+**Detection coverage** - the event log provider list covers the most common
+consumer hardware, but there are gaps. Exotic chipsets, enterprise storage
+controllers, and less common WiFi adapters may not be picked up by the hardware
+provider queries. This is on the improvement list.
+
+**UI polish** - a few rough edges remain in layout and interaction, particularly
+at non-standard DPI settings and on smaller displays.
+
+If you run into anything unexpected, open an issue with the scan window used,
+the flag that triggered, and the driver in question. Real-world data is the
+fastest way to improve the scoring model.
+
+---
 ## Contact
 
-**Author:** Artemijs Kaufmans  
-**Email:** artemonkaufmann@icloud.com  
-**LinkedIn:** [linkedin.com/in/artemijs-kaufmans](https://linkedin.com/in/artemijs-kaufmans)  
+**Author:** Artemijs Kaufmans
+**Email:** artemonkaufmann@icloud.com
+**LinkedIn:** [linkedin.com/in/artemijs-kaufmans](https://linkedin.com/in/artemijs-kaufmans)
 
 ---
 
-## Acknowledgments
+## License
 
-Built with:
-- [Qt Framework](https://www.qt.io/) - Modern C++ GUI framework
-- [Microsoft Windows API Documentation](https://docs.microsoft.com/en-us/windows/) - SetupAPI, Event Log, and Configuration Manager references
-
----
-
-**Driver Visualiser** — Because troubleshooting Windows drivers shouldn't require a CS degree.
+Source available for portfolio and code review purposes only.
+See [LICENSE](LICENSE) for full terms.
 
 ---
 
-⭐ **If you find Driver Visualiser useful, consider starring the repo!**
+## Acknowledgements
+
+- [Qt Framework](https://www.qt.io/) - C++ GUI framework (LGPL v3)
+- [Tabler Icons](https://tabler.io/icons) - Open source SVG icon set (MIT)
+- [Microsoft Windows API Documentation](https://docs.microsoft.com/en-us/windows/) - SetupAPI, Configuration Manager, and Event Log references
+
+---
+
+**Driver Visualiser** - Because driver diagnostics should take seconds, not a CS degree.

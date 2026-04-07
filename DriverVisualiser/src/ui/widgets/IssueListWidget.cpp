@@ -199,7 +199,7 @@ QWidget* IssueListWidget::createIssueRow(const DashboardIssue& issue)
             "   border-radius: 6px;"
             "   padding: 1px 6px;"
             "}"
-        ).arg(AppTheme::colors().textPrimary,  // White text
+        ).arg(AppTheme::colors().textPrimary,   // White text
               AppTheme::colors().warning,       // Orange background
               AppTheme::colors().warning));     // Orange border
         
