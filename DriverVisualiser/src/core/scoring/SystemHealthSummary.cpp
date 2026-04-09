@@ -1,6 +1,8 @@
 #include "SystemHealthSummary.h"
 #include <algorithm>
 #include <numeric>
+#include <set>
+#include <utility>
 #include <windows.h>
 
 // ============================================================================
@@ -57,6 +59,8 @@ namespace {
         L"SYSTEMWIDE_WARNING_RATE_SEVERE",
         L"SYSTEMWIDE_WARNING_RATE_HIGH",
         L"SYSTEMWIDE_WARNING_RATE_MODERATE",
+        // Device upgrade/migration issues
+        L"DEVICE_MIGRATION_FAILURES",       // Event 442 — settings not migrated from previous OS
         // Critical hardware failure types (separate flags)
         L"GPU_CRASHES_DETECTED",
         L"UMDF_FRAMEWORK_FAILURES",
@@ -227,6 +231,43 @@ int SystemHealthSummary::applySystemFlags(int baseScore,
 
         result.systemFlags.push_back(flag);
         score += PENALTY_POOR_METADATA;
+    }
+
+    // --- Flag 4b: Device settings migration failures (Event 442) ---
+    //
+    // Count unique migration failure incidents, not raw events.  A single
+    // peripheral reconnect emits one 442 per child HID device at the exact
+    // same timestamp — those all represent one incident.  We deduplicate by
+    // (timestamp, provider) to match the count the UI actually shows.
+    {
+        std::set<std::pair<std::chrono::system_clock::time_point, std::wstring>> seen442;
+        for (const auto& entry : allEvents) {
+            if (entry.eventId == 442 &&
+                entry.provider == L"Microsoft-Windows-Kernel-PnP") {
+                seen442.insert({ entry.timestamp, entry.provider });
+            }
+        }
+        int migrationFailureCount = static_cast<int>(seen442.size());
+
+        if (migrationFailureCount > 0) {
+            constexpr int PENALTY_PER_442 = -1;
+            constexpr int MAX_442_PENALTY = -5;
+            int penalty = std::max(PENALTY_PER_442 * migrationFailureCount,
+                                   MAX_442_PENALTY);
+
+            SystemHealthFlag flag;
+            flag.id = L"DEVICE_MIGRATION_FAILURES";
+            flag.description =
+                std::to_wstring(migrationFailureCount) +
+                (migrationFailureCount == 1
+                     ? L" device could not migrate settings from previous OS installation"
+                     : L" devices could not migrate settings from previous OS installation");
+            flag.severity = HealthFlagSeverity::Caution;
+            flag.penalty  = penalty;
+
+            result.systemFlags.push_back(flag);
+            score += penalty;
+        }
     }
 
     // ========================================================================

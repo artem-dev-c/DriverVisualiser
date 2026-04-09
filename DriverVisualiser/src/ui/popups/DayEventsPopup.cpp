@@ -314,38 +314,53 @@ void DayEventsPopup::populateEvents()
         return;
     }
 
-    // Build render order: chained events are grouped together (all events of a
-    // chain rendered consecutively), positioned where the chain's first event
-    // falls chronologically. Non-chained events keep their chronological slot.
+    // Build render order: chained events are grouped together as a consecutive
+    // block at their chain's First slot. Non-chained events keep their slot.
+    //
+    // Chain membership is determined by a forward pass tracking the current
+    // active First index per chain.  This avoids the backward-scan-by-
+    // deviceInstanceId approach which breaks when the same device appears in
+    // multiple separate chains (different chainInstance values share the same ID).
     const int n = static_cast<int>(m_events.size());
     std::vector<bool> rendered(n, false);
     std::vector<int> renderOrder;
     renderOrder.reserve(n);
 
-    // Group chained events by their First index
-    std::unordered_map<int, std::vector<int>> chainGroups;  // firstIdx -> [all indices]
+    // Forward pass: each First opens a group; subsequent Middle/Last entries
+    // are appended to the most recently opened group for the same chain.
+    // We track "current open First" per chain by using the First index itself
+    // as the group key — two chains for the same device get different First indices.
+    std::unordered_map<int, std::vector<int>> chainGroups;  // firstIdx → [all indices in order]
+    int currentFirst = -1;
 
     for (int i = 0; i < n; ++i) {
-        if (m_chainPos[i] == ChainPos::First) {
-            chainGroups[i] = { i };
-        } else if (m_chainPos[i] == ChainPos::Middle || m_chainPos[i] == ChainPos::Last) {
-            // Find the First for this chain — same deviceInstanceId scanning backward
-            const auto& myId = m_events[i].deviceInstanceId;
-            for (int j = i - 1; j >= 0; --j) {
-                if (m_chainPos[j] == ChainPos::First
-                        && m_events[j].deviceInstanceId == myId) {
-                    chainGroups[j].push_back(i);
+        switch (m_chainPos[i]) {
+            case ChainPos::First:
+                currentFirst = i;
+                chainGroups[i] = { i };
+                break;
+            case ChainPos::Middle:
+            case ChainPos::Last:
+                // Append to the currently open chain group.
+                // If currentFirst is -1 something went wrong in buildChains;
+                // fall through to None so the card still renders.
+                if (currentFirst >= 0) {
+                    chainGroups[currentFirst].push_back(i);
                     break;
                 }
-            }
+                [[fallthrough]];
+            case ChainPos::None:
+            default:
+                // Not part of any chain — renders in its own slot
+                break;
         }
+        if (m_chainPos[i] == ChainPos::Last)
+            currentFirst = -1;
     }
 
     for (int i = 0; i < n; ++i) {
         if (rendered[i]) continue;
-
         if (m_chainPos[i] == ChainPos::First) {
-            // Render the entire chain as a consecutive block
             for (int idx : chainGroups[i]) {
                 renderOrder.push_back(idx);
                 rendered[idx] = true;
@@ -354,7 +369,7 @@ void DayEventsPopup::populateEvents()
             renderOrder.push_back(i);
             rendered[i] = true;
         }
-        // Middle/Last already rendered as part of their chain's First block
+        // Middle/Last already consumed when their chain's First was processed
     }
 
     for (int idx : renderOrder)
@@ -429,23 +444,26 @@ QWidget* DayEventsPopup::createEventCard(int eventIndex)
     }
     topRow->addWidget(timeLabel);
 
-    // Level — coloured badge with background, matching ErrorLogPopupWidget style
+    // Level badge
     QLabel* levelLabel = new QLabel(QString::fromStdWString(entry.level));
     {
         QFont f = levelLabel->font();
         f.setPointSize(9); f.setWeight(QFont::Bold);
         levelLabel->setFont(f);
-        QString bgColor;
-        if (entry.level == L"Critical" || entry.level == L"Error")
-            bgColor = "rgba(231, 76, 60, 0.2)";
-        else if (entry.level == L"Warning")
-            bgColor = "rgba(243, 156, 18, 0.2)";
-        else
-            bgColor = "rgba(93, 173, 226, 0.2)";
+        QString textColor, bgColor;
+        if (entry.level == L"Critical" || entry.level == L"Error") {
+            textColor = AppTheme::colors().critical;
+            bgColor   = "rgba(231, 76, 60, 0.2)";
+        } else if (entry.level == L"Warning") {
+            textColor = AppTheme::colors().warning;
+            bgColor   = "rgba(243, 156, 18, 0.2)";
+        } else {
+            textColor = AppTheme::colors().accent;
+            bgColor   = "rgba(93, 173, 226, 0.2)";
+        }
         levelLabel->setStyleSheet(QString(
-            "color: %1; background-color: %2;"
-            "border-radius: 4px; padding: 3px 8px;"
-        ).arg(getSeverityColor(entry.level), bgColor));
+            "color: %1; background-color: %2; border-radius: 4px; padding: 3px 8px;"
+        ).arg(textColor, bgColor));
     }
     topRow->addWidget(levelLabel);
 
@@ -458,55 +476,73 @@ QWidget* DayEventsPopup::createEventCard(int eventIndex)
         topRow->addWidget(idLabel);
     }
     topRow->addStretch();
+
+    // SystemWide pill — top-right corner of the top row
+    if (entry.category == ErrorLogEntry::Category::SystemWide) {
+        QLabel* pill = new QLabel("system-wide");
+        QFont fp = pill->font();
+        fp.setPointSize(8);
+        fp.setWeight(QFont::Medium);
+        pill->setFont(fp);
+        pill->setStyleSheet(QString(
+            "color: %1;"
+            "background-color: %2;"
+            "border: 1px solid %3;"
+            "border-radius: 3px;"
+            "padding: 2px 6px;"
+        ).arg(AppTheme::colors().accentText,
+              AppTheme::colors().accentBg,
+              AppTheme::colors().accentBgBorder));
+        topRow->addWidget(pill);
+    }
+
     cardLayout->addLayout(topRow);
 
-    // System-wide badge (for events without device mapping)
-    if (entry.category == ErrorLogEntry::Category::SystemWide) {
-        QHBoxLayout* badgeRow = new QHBoxLayout();
-        badgeRow->setSpacing(6);
-        badgeRow->setContentsMargins(0, 0, 0, 0);
-        
-        // Info icon
-        QLabel* iconLabel = new QLabel();
-        iconLabel->setPixmap(IconProvider::icon(IconProvider::InfoCircle, 
-                                                AppTheme::colors().textMuted, 14)
-                             .pixmap(14, 14));
-        iconLabel->setStyleSheet("background: transparent;");
-        badgeRow->addWidget(iconLabel);
-        
-        // Badge text
-        QLabel* badgeLabel = new QLabel("System-wide event");
-        QFont f = badgeLabel->font(); 
-        f.setPointSize(9); 
-        f.setItalic(true);
-        badgeLabel->setFont(f);
-        badgeLabel->setStyleSheet(QString("color: %1; background: transparent;")
-            .arg(AppTheme::colors().textMuted));
-        badgeRow->addWidget(badgeLabel);
-        badgeRow->addStretch();
-        
-        cardLayout->addLayout(badgeRow);
-    }
-    // Driver name (only for DeviceMapped events)
-    else if (entry.driverName.has_value() && !entry.driverName.value().empty()) {
-        QLabel* nameLabel = new QLabel(QString::fromStdWString(entry.driverName.value()));
-        QFont f = nameLabel->font(); f.setPointSize(10); f.setWeight(QFont::DemiBold);
-        nameLabel->setFont(f);
-        nameLabel->setStyleSheet(QString("color: %1; background: transparent;")
-            .arg(AppTheme::colors().textPrimary));
-        cardLayout->addWidget(nameLabel);
+    // Device / source name — bold header on all cards.
+    // SystemWide uses provider name (e.g. "nvlddmkm"). DeviceMapped uses displayName().
+    {
+        std::wstring name;
+        if (entry.category == ErrorLogEntry::Category::SystemWide) {
+            name = entry.provider;
+            if (name.empty()) name = L"Unknown provider";
+        } else {
+            name = entry.displayName();
+        }
+        if (!name.empty()) {
+            QLabel* nameLabel = new QLabel(QString::fromStdWString(name));
+            QFont f = nameLabel->font();
+            f.setPointSize(10);
+            f.setWeight(QFont::DemiBold);
+            nameLabel->setFont(f);
+            nameLabel->setStyleSheet(QString("color: %1; background: transparent;")
+                .arg(AppTheme::colors().textPrimary));
+            cardLayout->addWidget(nameLabel);
+        }
     }
 
     // Message
     if (!entry.message.empty()) {
         QString msg = QString::fromStdWString(entry.message);
+
+        // SystemWide messages from EvtFormatMessage are multi-paragraph —
+        // the useful human sentence is on the first line, followed by metadata
+        // ("Class GUID:", "Location Path:", etc.) that clutters a compact card.
+        if (entry.category == ErrorLogEntry::Category::SystemWide) {
+            int nlIdx = msg.indexOf('\n');
+            if (nlIdx > 0)
+                msg = msg.left(nlIdx).trimmed();
+        }
+
         if (msg.length() > 300) msg = msg.left(297) + "...";
-        QLabel* msgLabel = new QLabel(msg);
-        msgLabel->setWordWrap(true);
-        QFont f = msgLabel->font(); f.setPointSize(10); msgLabel->setFont(f);
-        msgLabel->setStyleSheet(QString("color: %1; background: transparent;")
-            .arg(AppTheme::colors().textSecondary));
-        cardLayout->addWidget(msgLabel);
+
+        if (!msg.isEmpty()) {
+            QLabel* msgLabel = new QLabel(msg);
+            msgLabel->setWordWrap(true);
+            QFont f = msgLabel->font(); f.setPointSize(10); msgLabel->setFont(f);
+            msgLabel->setStyleSheet(QString("color: %1; background: transparent;")
+                .arg(AppTheme::colors().textSecondary));
+            cardLayout->addWidget(msgLabel);
+        }
     }
 
     rowLayout->addWidget(card, 1);
@@ -583,8 +619,9 @@ QWidget* DayEventsPopup::createSwdRow(const ErrorLogEntry& entry) const
     QString text = formatTime(entry);
     if (entry.eventId != 0)
         text += QString("  ·  Event %1").arg(entry.eventId);
-    if (entry.driverName.has_value() && !entry.driverName.value().empty())
-        text += "  ·  " + QString::fromStdWString(entry.driverName.value());
+    std::wstring swdName = entry.displayName();
+    if (!swdName.empty())
+        text += "  ·  " + QString::fromStdWString(swdName);
 
     QLabel* label = new QLabel(text);
     QFont f = label->font(); f.setPointSize(9);
@@ -664,20 +701,6 @@ QString DayEventsPopup::formatTime(const ErrorLogEntry& entry) const
 {
     auto timeT = std::chrono::system_clock::to_time_t(entry.timestamp);
     return QDateTime::fromSecsSinceEpoch(timeT).toString("HH:mm:ss");
-}
-
-QString DayEventsPopup::getSeverityColor(const std::wstring& level) const
-{
-    if (level == L"Critical" || level == L"Error") return "#e74c3c";
-    if (level == L"Warning")                        return "#f39c12";
-    return "#5dade2";
-}
-
-QString DayEventsPopup::getSeverityEmoji(const std::wstring& level) const
-{
-    if (level == L"Critical" || level == L"Error") return "🔴";
-    if (level == L"Warning")                        return "🟠";
-    return "🔵";
 }
 
 // ============================================================================

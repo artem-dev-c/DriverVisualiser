@@ -2,6 +2,12 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <unordered_map>
+#include <cfgmgr32.h>
+#include <initguid.h>   // Must come before devpkey.h to instantiate GUID definitions
+#include <devpkey.h>
+
+#pragma comment(lib, "Cfgmgr32.lib")
 
 // ============================================================================
 // Static Member Initialization
@@ -9,6 +15,79 @@
 
 std::unordered_set<std::wstring> ErrorLogReader::s_discoveredProviders;
 bool ErrorLogReader::s_discoveryComplete = false;
+
+// ============================================================================
+// CM Device Friendly Name Resolver
+// ============================================================================
+//
+// Kernel-PnP event XML never embeds a FriendlyName — it only has
+// DeviceInstanceId.  We resolve the human-readable name via the CM API
+// (same source as Get-PnpDevice / Device Manager) and cache results for
+// the session to avoid repeated CM calls on the same ID.
+
+namespace {
+    std::unordered_map<std::wstring, std::wstring> s_friendlyNameCache;
+
+    /// Resolve the friendly display name for a Device Instance ID using CM API.
+    /// Returns empty string if the device is unknown or has no friendly name.
+    std::wstring resolveDeviceFriendlyName(const std::wstring& instanceId)
+    {
+        if (instanceId.empty()) return L"";
+
+        // Normalise to uppercase for cache key
+        std::wstring key = instanceId;
+        std::transform(key.begin(), key.end(), key.begin(), ::towupper);
+
+        auto it = s_friendlyNameCache.find(key);
+        if (it != s_friendlyNameCache.end())
+            return it->second;
+
+        // Locate the devnode
+        DEVINST devInst = 0;
+        CONFIGRET cr = CM_Locate_DevNodeW(&devInst, const_cast<wchar_t*>(instanceId.c_str()),
+                                          CM_LOCATE_DEVNODE_PHANTOM);
+        if (cr != CR_SUCCESS) {
+            s_friendlyNameCache[key] = L"";
+            return L"";
+        }
+
+        // Try DEVPKEY_NAME first (friendly name / description, whichever is set)
+        wchar_t nameBuf[512] = {};
+        ULONG nameLen = sizeof(nameBuf);
+        DEVPROPTYPE propType = 0;
+
+        cr = CM_Get_DevNode_PropertyW(devInst, &DEVPKEY_NAME, &propType,
+                                      reinterpret_cast<PBYTE>(nameBuf), &nameLen, 0);
+        if (cr == CR_SUCCESS && nameBuf[0] != L'\0') {
+            std::wstring result(nameBuf);
+            s_friendlyNameCache[key] = result;
+            return result;
+        }
+
+        // Fallback: DEVPKEY_Device_FriendlyName
+        nameLen = sizeof(nameBuf);
+        cr = CM_Get_DevNode_PropertyW(devInst, &DEVPKEY_Device_FriendlyName, &propType,
+                                      reinterpret_cast<PBYTE>(nameBuf), &nameLen, 0);
+        if (cr == CR_SUCCESS && nameBuf[0] != L'\0') {
+            std::wstring result(nameBuf);
+            s_friendlyNameCache[key] = result;
+            return result;
+        }
+
+        // Fallback: DEVPKEY_Device_DeviceDesc (generic description, always present)
+        nameLen = sizeof(nameBuf);
+        cr = CM_Get_DevNode_PropertyW(devInst, &DEVPKEY_Device_DeviceDesc, &propType,
+                                      reinterpret_cast<PBYTE>(nameBuf), &nameLen, 0);
+        if (cr == CR_SUCCESS && nameBuf[0] != L'\0') {
+            std::wstring result(nameBuf);
+            s_friendlyNameCache[key] = result;
+            return result;
+        }
+
+        s_friendlyNameCache[key] = L"";
+        return L"";
+    }
+} // namespace
 
 // ============================================================================
 // Core Provider Whitelist (Always Queried)
@@ -73,11 +152,12 @@ namespace {
     
     /// Lifecycle events to capture (Information level from Kernel-PnP)
     const std::unordered_set<int> LIFECYCLE_EVENT_IDS = {
-        400,   // Device installed/updated (VISIBLE)
-        // 410 - Device configured (EXCLUDED - 1:1 duplicate of Event 400, adds no value)
-        420,   // Restart required (VISIBLE)
-        430,   // Device removal started (VISIBLE)
-        431    // Device removal complete (VISIBLE)
+        400,   // Device configured (Install/Update)
+        410,   // Device started (Success pulse) 
+        420,   // Device deleted
+        430,   // Service added (Driver engine linked)
+        431,   // Service deleted (Driver engine unlinked)
+        442    // Migration failed
     };
     
     /// Events to completely exclude (spam/noise)
@@ -147,12 +227,13 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
         L"   or Provider[@Name='Microsoft-Windows-DriverFrameworks-UserMode']"
         L"   or Provider[@Name='Microsoft-Windows-UserPnP'])"
         L"  and ("
-        L"    (Level=1 or Level=2 or Level=3)"  // All errors/warnings
+        L"    (Level=1 or Level=2 or Level=3)"  // All errors/warnings (includes 442 which is Level=3)
         L"    or (Level=4 and ("  // Information - lifecycle events only
-        L"      EventID=400"   // Device installed/updated
-        L"      or EventID=420"  // Restart required
-        L"      or EventID=430"  // Device removal started
-        L"      or EventID=431"  // Device removal complete
+        L"      EventID=400"     // Device installed/updated
+        L"      or EventID=410"  // Device started
+        L"      or EventID=420"  // Device deleted
+        L"      or EventID=430"  // Service added
+        L"      or EventID=431"  // Service deleted
         L"    ))"
         L"  )"
         L"]]";
@@ -167,10 +248,15 @@ std::vector<ErrorLogEntry> ErrorLogReader::querySystemLog(int days)
     std::wstring configQuery =
         L"*[System["
         L"  Provider[@Name='Microsoft-Windows-Kernel-PnP']"
-        L"  and Level=4"  // Information only
         L"  and ("
-        L"    EventID=400 or EventID=420"
-        L"    or EventID=430 or EventID=431"
+        L"    (Level=4 and ("        // Information lifecycle events
+        L"      EventID=400"         // Device installed/updated
+        L"      or EventID=410"      // Device started
+        L"      or EventID=420"      // Device deleted
+        L"      or EventID=430"      // Service added
+        L"      or EventID=431"      // Service deleted
+        L"    ))"
+        L"    or (Level=3 and EventID=442)"  // 442 is Warning (Level=3), lives in Configuration log
         L"  )"
         L"]]";
     
@@ -314,7 +400,7 @@ void ErrorLogReader::classifyEvent(ErrorLogEntry& entry)
             return;
         }
     }
-    
+
     // If has DeviceInstanceId → DeviceMapped, else SystemWide
     if (entry.deviceInstanceId.has_value() && !entry.deviceInstanceId.value().empty()) {
         entry.category = ErrorLogEntry::Category::DeviceMapped;
@@ -576,56 +662,120 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
     entry.timestamp = extractTimestamp(xml);
 
     // ========================================================================
-    // Extract Driver/Device Name (Friendly Name)
+    // Extract DeviceInstanceId (try canonical field names in priority order)
     // ========================================================================
-    
-    // Try multiple possible field names for friendly device/driver name
-    entry.driverName = extractEventDataField(xml, L"DeviceName");
-    if (!entry.driverName.has_value())
-        entry.driverName = extractEventDataField(xml, L"DriverDescription");
-    if (!entry.driverName.has_value())
-        entry.driverName = extractEventDataField(xml, L"FriendlyName");
-    if (!entry.driverName.has_value())
-        entry.driverName = extractEventDataField(xml, L"DeviceDesc");
 
-    // ========================================================================
-    // Extract DeviceInstanceId (try multiple field names)
-    // ========================================================================
-    
     entry.deviceInstanceId = extractEventDataField(xml, L"DeviceInstanceId");
     if (!entry.deviceInstanceId.has_value())
         entry.deviceInstanceId = extractEventDataField(xml, L"InstanceId");
     if (!entry.deviceInstanceId.has_value())
         entry.deviceInstanceId = extractEventDataField(xml, L"TargetInstanceId");
-    if (!entry.deviceInstanceId.has_value())
-        entry.deviceInstanceId = extractEventDataField(xml, L"DriverName");
+
+    // Event 219 ("driver failed to load") stores the device path in DriverName,
+    // not DeviceInstanceId — it's the only event where DriverName holds a device
+    // path rather than an .inf filename.
+    if (!entry.deviceInstanceId.has_value() && entry.eventId == 219) {
+        auto driverNameField = extractEventDataField(xml, L"DriverName");
+        if (driverNameField.has_value()) {
+            const auto& val = driverNameField.value();
+            // Device paths start with a bus prefix like PCI\, USB\, ACPI\, etc.
+            // .inf filenames end with .inf — reject those.
+            std::wstring lower = val;
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::towlower);
+            if (lower.size() < 4 || lower.substr(lower.size() - 4) != L".inf")
+                entry.deviceInstanceId = val;
+        }
+    }
 
     if (entry.deviceInstanceId.has_value()) {
         entry.deviceInstanceId = decodeHtmlEntities(entry.deviceInstanceId.value());
+        const auto& id = entry.deviceInstanceId.value();
+        if (id.empty() || id == L"null" || id == L"NULL")
+            entry.deviceInstanceId = std::nullopt;
     }
 
     // ========================================================================
-    // Extract Lifecycle Metadata (Event 400, 420, 430, 431)
+    // Resolve Friendly Name via CM API
     // ========================================================================
-    
+    //
+    // Kernel-PnP event XML does NOT embed a FriendlyName field — the only
+    // reliable source is the Configuration Manager (same as Device Manager /
+    // Get-PnpDevice).  We call resolveDeviceFriendlyName() which uses
+    // CM_Get_DevNode_Property with a session-level cache so each unique
+    // instance ID is only looked up once per scan.
+    //
+    // For hardware provider events (nvlddmkm, disk, etc.) there is no
+    // DeviceInstanceId in the event XML at all — friendlyName stays empty
+    // and displayName() will fall through to the infName or provider string.
+
+    if (entry.deviceInstanceId.has_value()) {
+        std::wstring resolved = resolveDeviceFriendlyName(entry.deviceInstanceId.value());
+        if (!resolved.empty())
+            entry.friendlyName = resolved;
+    }
+
+    // For events that have no deviceInstanceId but do have a DriverName/.inf
+    // in their EventData (e.g. some UserPnP events), extract it as infName
+    // so displayName() has something to show.
+    if (!entry.deviceInstanceId.has_value()) {
+        auto xmlDriverName = extractEventDataField(xml, L"DriverDescription");
+        if (!xmlDriverName.has_value())
+            xmlDriverName = extractEventDataField(xml, L"DeviceName");
+        if (xmlDriverName.has_value() && !xmlDriverName.value().empty()
+                && xmlDriverName.value() != L"null") {
+            entry.friendlyName = xmlDriverName;
+        }
+    }
+
+    // ========================================================================
+    // Extract Lifecycle Metadata (Event 400, 410, 420, 430, 431 — Information)
+    // ========================================================================
+
     if (entry.level == L"Information" && LIFECYCLE_EVENT_IDS.count(entry.eventId) > 0) {
         // Driver version
         entry.driverVersion = extractEventDataField(xml, L"DriverVersion");
-        
+
         // Driver provider/manufacturer
         entry.driverProvider = extractEventDataField(xml, L"DriverProvider");
-        
-        // INF filename
+
+        // INF filename — always comes from the DriverName XML field for lifecycle events
         entry.infName = extractEventDataField(xml, L"DriverName");
         if (!entry.infName.has_value())
             entry.infName = extractEventDataField(xml, L"InfName");
-        
+
+        // Clean up null placeholders emitted by Kernel-PnP when no driver is bound
+        if (entry.infName.has_value()) {
+            const auto& inf = entry.infName.value();
+            if (inf.empty() || inf == L"null" || inf == L"NULL")
+                entry.infName = std::nullopt;
+        }
+
         // Check if this was an update vs fresh install (Event 400 only)
         if (entry.eventId == 400) {
             auto deviceUpdated = extractEventDataField(xml, L"DeviceUpdated");
             if (deviceUpdated.has_value()) {
                 entry.isDriverUpdate = (deviceUpdated.value() == L"true");
             }
+        }
+    }
+
+    // ========================================================================
+    // Extract Lifecycle Metadata for Event 442 (Warning level — not caught above)
+    // ========================================================================
+    //
+    // Event 442 "Device settings not migrated" is Level=Warning, so it misses
+    // the Information guard above.  It carries DeviceInstanceId (already
+    // extracted) but no DriverVersion/Provider.  We pull the DriverName (.inf)
+    // when present so displayName() has a secondary fallback.
+
+    if (entry.eventId == 442) {
+        auto inf442 = extractEventDataField(xml, L"DriverName");
+        if (!inf442.has_value())
+            inf442 = extractEventDataField(xml, L"InfName");
+        if (inf442.has_value()) {
+            const auto& inf = inf442.value();
+            if (!inf.empty() && inf != L"null" && inf != L"NULL")
+                entry.infName = inf;
         }
     }
 
@@ -653,8 +803,28 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
     // ========================================================================
     // Build Message
     // ========================================================================
-    
-    entry.message = buildEventMessage(entry.eventId, entry.provider, xml);
+    //
+    // Kernel-PnP lifecycle events (400/410/420/430/431/442): keep our
+    // synthesized messages — they're concise and consistent.
+    // Everything else: use the real Windows-formatted message via
+    // EvtFormatMessage (same source as PowerShell $_.Message / Event Viewer),
+    // falling back to the synthesized template only if the call fails.
+
+    static const std::unordered_set<int> LIFECYCLE_SYNTH_IDS = {
+        400, 410, 420, 430, 431, 442
+    };
+
+    bool useSynth = (entry.provider == L"Microsoft-Windows-Kernel-PnP"
+                     && LIFECYCLE_SYNTH_IDS.count(entry.eventId) > 0);
+
+    if (!useSynth) {
+        std::wstring formatted = extractFormattedMessage(hEvent);
+        entry.message = !formatted.empty()
+            ? formatted
+            : buildEventMessage(entry.eventId, entry.provider, xml);
+    } else {
+        entry.message = buildEventMessage(entry.eventId, entry.provider, xml);
+    }
 
     // Enhance lifecycle messages with version info
     if (entry.eventId == 400 && entry.driverVersion.has_value()) {
@@ -663,9 +833,86 @@ ErrorLogEntry ErrorLogReader::parseEvent(EVT_HANDLE hEvent)
         } else {
             entry.message = L"Driver installed (version " + entry.driverVersion.value() + L")";
         }
+        if (entry.infName.has_value()) {
+            entry.message += L" via " + entry.infName.value();
+        }
     }
 
     return entry;
+}
+
+// ============================================================================
+// Formatted Message Extraction
+// ============================================================================
+
+std::wstring ErrorLogReader::extractFormattedMessage(EVT_HANDLE hEvent)
+{
+    // We need EvtOpenPublisherMetadata to resolve the provider's message DLL.
+    // Without it, EvtFormatMessage only works for a handful of built-in providers
+    // and silently returns empty for everything else (nvlddmkm, disk, storahci…).
+
+    // First render the event XML to get the provider name.
+    DWORD bufSize = 0, bufUsed = 0, propCount = 0;
+    EvtRender(nullptr, hEvent, EvtRenderEventXml, 0, nullptr, &bufUsed, &propCount);
+    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER || bufUsed == 0)
+        return L"";
+
+    std::vector<wchar_t> xmlBuf(bufUsed / sizeof(wchar_t) + 1);
+    if (!EvtRender(nullptr, hEvent, EvtRenderEventXml,
+                   bufUsed, xmlBuf.data(), &bufUsed, &propCount))
+        return L"";
+
+    std::wstring xml(xmlBuf.data());
+
+    // Extract provider name from XML
+    std::wstring providerName;
+    auto extractProvider = [&]() {
+        for (const wchar_t* q : { L"<Provider Name='", L"<Provider Name=\"" }) {
+            size_t pos = xml.find(q);
+            if (pos == std::wstring::npos) continue;
+            pos += 16;
+            wchar_t closeQ = xml[pos - 1];
+            size_t end = xml.find(closeQ, pos);
+            if (end != std::wstring::npos)
+                providerName = xml.substr(pos, end - pos);
+            return;
+        }
+    };
+    extractProvider();
+
+    if (providerName.empty())
+        return L"";
+
+    // Open the publisher's metadata (message DLL registry entry).
+    // Use a per-call open — providers are cheap to open and caching handles
+    // across events of different providers adds complexity for little gain.
+    EVT_HANDLE hMeta = EvtOpenPublisherMetadata(nullptr, providerName.c_str(),
+                                                nullptr, 0, 0);
+    if (!hMeta)
+        return L"";
+
+    // Size the output buffer — the first call returns FALSE with
+    // ERROR_INSUFFICIENT_BUFFER and sets bufferNeeded.
+    DWORD needed = 0;
+    EvtFormatMessage(hMeta, hEvent, 0, 0, nullptr,
+                     EvtFormatMessageEvent, 0, nullptr, &needed);
+
+    std::wstring result;
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && needed > 0) {
+        std::vector<wchar_t> buf(needed);
+        if (EvtFormatMessage(hMeta, hEvent, 0, 0, nullptr,
+                             EvtFormatMessageEvent, needed, buf.data(), &needed)) {
+            result = std::wstring(buf.data());
+            // Strip trailing whitespace/newlines Windows appends
+            while (!result.empty() &&
+                   (result.back() == L'\n' || result.back() == L'\r' ||
+                    result.back() == L' '))
+                result.pop_back();
+        }
+    }
+
+    EvtClose(hMeta);
+    return result;
 }
 
 // ============================================================================
@@ -701,10 +948,11 @@ std::wstring ErrorLogReader::buildEventMessage(int eventId, const std::wstring& 
                     ? L"Device removal failed (Status: 0x" + st.value() + L")"
                     : L"Device removal failed";
             }
-            case 420: return L"Device requires system restart to function";
-            case 430: return L"Device removal started";
-            case 431: return L"Device removal completed";
-            case 442: return L"Device was disabled";
+            case 410: return L"Device started successfully"; 
+            case 420: return L"Device node deleted/uninstalled";
+            case 430: return L"Driver service associated";
+            case 431: return L"Driver service disassociated";
+            case 442: return L"Device settings not migrated from previous OS installation";
             case 443: return L"Device was enabled";
         }
     }
@@ -731,7 +979,7 @@ std::wstring ErrorLogReader::buildEventMessage(int eventId, const std::wstring& 
             }
             case 10010: return L"Driver stopped responding";
             case 10100: return L"Driver framework reflector warning";
-            case 2004: return L"Kernel driver warning";
+            case 2004:  return L"Kernel driver warning";
             case 10001: return L"Kernel driver error";
         }
     }

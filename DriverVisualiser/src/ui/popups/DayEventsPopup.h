@@ -45,8 +45,6 @@ private:
     QWidget* createStatsRow() const;
 
     QString formatTime(const ErrorLogEntry& entry) const;
-    QString getSeverityColor(const std::wstring& level) const;
-    QString getSeverityEmoji(const std::wstring& level) const;
 
     // ── Data ──────────────────────────────────────────────────────────────────
     QDate                      m_date;
